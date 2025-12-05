@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="https://noldai.com/logo.svg" alt="NOLD AI" width="200" />
   <h1>NOLD AI</h1>
   <p><strong>Stop vibe coding. Start shipping quality code with contracts.</strong></p>
   
