@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Trusted Requirements Authority
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  trusted-requirements-authority:
+    name: Trusted Requirements Authority
+    if: github.repository == 'nold-ai/specfact-cli'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout immutable organization policy
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: nold-ai/.github
+          ref: ${{ github.workflow_sha }}
+          path: .trusted-policy
+          persist-credentials: false
+
+      - name: Verify policy checkout identity
+        env:
+          EXPECTED_POLICY_SHA: ${{ github.workflow_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_POLICY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C .trusted-policy rev-parse HEAD)" = "$EXPECTED_POLICY_SHA"
+
+      - name: Authenticate exact pull-request tree
+        env:
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .trusted-policy/.github/scripts/trusted_requirements_authority.py
+          --event "$GITHUB_EVENT_PATH"

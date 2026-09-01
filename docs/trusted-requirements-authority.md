@@ -21,7 +21,24 @@ SPECFACT_TRUSTED_REQUIREMENTS_AUTHORITY_V1
 
 The expiry must be after validation time and no later than seven days after the
 comment was created. The comment author must match `signer_login`, and edited
-comments are rejected.
+comments are rejected. The workflow also revalidates the signer's current
+effective repository permission through GitHub's read-only collaborator API;
+only `write` or `admin` is accepted. Historical comment association is not
+sufficient after access is removed.
+
+This is a one-shot capability: expiry, edit state, and live permission are
+checked when the required workflow consumes the comment and publishes an
+attestation for that exact head commit and tree. GitHub check conclusions are
+immutable snapshots; deleting or editing the comment, removing access, or
+reaching `expires_at` after a successful run does not retroactively revoke that
+attestation. Any push creates a different head and requires a new authority.
+Continuous post-success revocation is deliberately out of scope because it
+requires an organization-owned GitHub App (or an equivalent merge-time policy
+service) able to publish a newer failing check for the unchanged head.
+
+The verifier's API transport connects only to `api.github.com` over TLS and
+does not follow redirects. Candidate values are encoded only into relative API
+paths and are never accepted as hosts or URL schemes.
 
 This workflow is intended to be selected by an organization branch ruleset's
 "Require workflows to pass before merging" rule for `dev` and `main`. The
