@@ -118,7 +118,12 @@ def _parsed_authority(comment: Mapping[str, object]) -> dict[str, object] | None
     ):
         return None
     header, separator, encoded = body.partition("\n")
-    if header != HEADER or not separator or "\n" in encoded:
+    if (
+        header not in {HEADER, f"{HEADER}\r"}
+        or not separator
+        or "\r" in encoded
+        or "\n" in encoded
+    ):
         return None
     try:
         decoded = json.loads(encoded)

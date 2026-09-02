@@ -93,6 +93,59 @@ def test_exact_unedited_member_authority_accepts_complete_current_tree() -> None
     assert receipt["authority_digest"].startswith("sha256:")
 
 
+def test_exact_browser_crlf_authority_matches_lf_receipt() -> None:
+    module = _module()
+    lf_comment = _comment()
+    crlf_comment = _comment(body=str(lf_comment["body"]).replace("\n", "\r\n"))
+
+    lf_receipt = module.validate_authority(
+        _event(),
+        [lf_comment],
+        {"sha": HEAD, "tree": {"sha": TREE}},
+        {"permission": "write", "user": {"login": "reviewer"}},
+        NOW,
+    )
+    crlf_receipt = module.validate_authority(
+        _event(),
+        [crlf_comment],
+        {"sha": HEAD, "tree": {"sha": TREE}},
+        {"permission": "write", "user": {"login": "reviewer"}},
+        NOW,
+    )
+
+    assert crlf_receipt["authority_digest"] == lf_receipt["authority_digest"]
+
+
+@pytest.mark.parametrize("separator", ("\r\r\n", "\r"))
+def test_noncanonical_header_separator_is_rejected(separator: str) -> None:
+    module = _module()
+    encoded = json.dumps(_authority(), sort_keys=True, separators=(",", ":"))
+
+    with pytest.raises(ValueError, match="trusted authority rejected"):
+        module.validate_authority(
+            _event(),
+            [_comment(body=HEADER + separator + encoded)],
+            {"sha": HEAD, "tree": {"sha": TREE}},
+            {"permission": "write", "user": {"login": "reviewer"}},
+            NOW,
+        )
+
+
+@pytest.mark.parametrize("suffix", ("\r", "\r\n{}"))
+def test_crlf_authority_rejects_extra_payload_bytes(suffix: str) -> None:
+    module = _module()
+    encoded = json.dumps(_authority(), sort_keys=True, separators=(",", ":"))
+
+    with pytest.raises(ValueError, match="trusted authority rejected"):
+        module.validate_authority(
+            _event(),
+            [_comment(body=HEADER + "\r\n" + encoded + suffix)],
+            {"sha": HEAD, "tree": {"sha": TREE}},
+            {"permission": "write", "user": {"login": "reviewer"}},
+            NOW,
+        )
+
+
 @pytest.mark.parametrize(
     "comment",
     (
@@ -125,6 +178,21 @@ def test_noncanonical_json_is_rejected() -> None:
     module = _module()
     comment = _comment()
     comment["body"] = HEADER + "\n" + json.dumps(_authority(), sort_keys=False)
+
+    with pytest.raises(ValueError, match="trusted authority rejected"):
+        module.validate_authority(
+            _event(),
+            [comment],
+            {"sha": HEAD, "tree": {"sha": TREE}},
+            {"permission": "write", "user": {"login": "reviewer"}},
+            NOW,
+        )
+
+
+def test_noncanonical_json_with_crlf_is_rejected() -> None:
+    module = _module()
+    comment = _comment()
+    comment["body"] = HEADER + "\r\n" + json.dumps(_authority(), sort_keys=False)
 
     with pytest.raises(ValueError, match="trusted authority rejected"):
         module.validate_authority(
