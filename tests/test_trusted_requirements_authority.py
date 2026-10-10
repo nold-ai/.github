@@ -8,6 +8,7 @@ from types import ModuleType
 
 import pytest
 
+
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / ".github" / "scripts" / "trusted_requirements_authority.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "trusted-requirements-authority.yml"

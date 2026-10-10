@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
+
 HEADER = "SPECFACT_TRUSTED_REQUIREMENTS_AUTHORITY_V1"
 API_HOST = "api.github.com"
 EXPECTED_REPOSITORY = "nold-ai/specfact-cli"
