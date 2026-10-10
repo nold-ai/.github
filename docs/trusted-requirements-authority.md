@@ -46,5 +46,18 @@ ordinary repository Requirements job remains responsible for producing and
 checking evidence; this external workflow prevents PR-controlled evidence
 producer bytes from self-authorizing.
 
-Rollback is to disable the organization required-workflow rule and revert the
-policy workflow commit. Do not replace it with a PR-controlled status check.
+Native GitHub stacks may use a repository-local parent PR branch as their base.
+That base is accepted only after the immutable verifier independently authenticates
+live GitHub native stack metadata: repository identities, stack ID/number/size,
+consecutive positions, exact parent branch/head, ancestry, and a protected dev/main
+root. Ambiguous parents, forked repositories, stale events and unrelated commits
+fail closed. The member capability still binds the immediate base and exact child
+head/tree; ancestry is not approval and cannot replace the member comment.
+
+This change is a prerequisite for stack #757. Its regression must fail against the
+unchanged protected-base-only verifier before implementation. The policy keeps all
+existing expiry, canonical encoding, edit-state and live permission controls.
+
+Rollback is a normally reviewed revert of the policy implementation while retaining
+the required-workflow rule. Downstream PRs then fail closed until restacked onto a
+protected base or a repaired policy is reviewed. Do not disable required gates.
