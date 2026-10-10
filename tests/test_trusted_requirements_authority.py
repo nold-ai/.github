@@ -297,20 +297,30 @@ def test_api_transport_is_fixed_to_github_and_rejects_absolute_urls(
     assert requests == [("GET", "/rate_limit")]
 
 
-@pytest.mark.parametrize("failure", (None, "missing-comment", "unrelated-parent", "stale-event"))
+@pytest.mark.parametrize(
+    "failure", (None, "missing-comment", "unrelated-parent", "stale-event")
+)
 def test_native_stack_member_authority_preserves_live_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str | None
 ) -> None:
     module = _module()
-    fixture = json.loads((ROOT / "tests/fixtures/native_stack_context.json").read_text())
+    fixture = json.loads(
+        (ROOT / "tests/fixtures/native_stack_context.json").read_text()
+    )
     event = fixture["event"]
     routes = fixture["routes"]
     pull = event["pull_request"]
     head = pull["head"]["sha"]
-    comments = [_comment(_authority(
-        pull_request=pull["number"], base_ref=pull["base"]["ref"],
-        head_branch=pull["head"]["ref"], head_commit=head,
-    ))]
+    comments = [
+        _comment(
+            _authority(
+                pull_request=pull["number"],
+                base_ref=pull["base"]["ref"],
+                head_branch=pull["head"]["ref"],
+                head_commit=head,
+            )
+        )
+    ]
     if failure == "missing-comment":
         comments = []
     elif failure == "unrelated-parent":
@@ -319,10 +329,16 @@ def test_native_stack_member_authority_preserves_live_boundary(
     elif failure == "stale-event":
         event = json.loads(json.dumps(event))
         event["pull_request"]["head"]["sha"] = "d" * 40
-    routes[f"/repos/nold-ai/specfact-cli/git/commits/{head}"] = {"sha": head, "tree": {"sha": TREE}}
-    routes[f"/repos/nold-ai/specfact-cli/issues/{pull['number']}/comments?per_page=100&page=1"] = comments
+    routes[f"/repos/nold-ai/specfact-cli/git/commits/{head}"] = {
+        "sha": head,
+        "tree": {"sha": TREE},
+    }
+    routes[
+        f"/repos/nold-ai/specfact-cli/issues/{pull['number']}/comments?per_page=100&page=1"
+    ] = comments
     routes["/repos/nold-ai/specfact-cli/collaborators/reviewer/permission"] = {
-        "permission": "write", "user": {"login": "reviewer"}
+        "permission": "write",
+        "user": {"login": "reviewer"},
     }
 
     class Clock(datetime):

@@ -66,7 +66,9 @@ def _timestamp(value: object) -> datetime:
     return parsed.astimezone(UTC)
 
 
-def _event_boundary(event: Mapping[str, object]) -> dict[str, object]:
+def _event_boundary(
+    event: Mapping[str, object], stack_context: Mapping[str, object] | None = None
+) -> dict[str, object]:
     repository = _object(event.get("repository"))
     pull_request = _object(event.get("pull_request"))
     base = _object(pull_request.get("base"))
@@ -78,12 +80,17 @@ def _event_boundary(event: Mapping[str, object]) -> dict[str, object]:
         "head_branch": head.get("ref"),
         "head_commit": head.get("sha"),
     }
+    protected_base = boundary["base_ref"] in ALLOWED_BASE_REFS
+    if stack_context is not None:
+        if not all(stack_context.get(key) == value for key, value in boundary.items()):
+            raise _reject()
+        protected_base = stack_context.get("proof_base_ref") in ALLOWED_BASE_REFS
     if not (
         boundary["repository"] == EXPECTED_REPOSITORY
         and isinstance(boundary["pull_request"], int)
         and not isinstance(boundary["pull_request"], bool)
         and cast(int, boundary["pull_request"]) > 0
-        and boundary["base_ref"] in ALLOWED_BASE_REFS
+        and protected_base
         and isinstance(boundary["head_branch"], str)
         and bool(boundary["head_branch"])
         and isinstance(boundary["head_commit"], str)
@@ -173,8 +180,9 @@ def _matching_authority(
     comments: Sequence[Mapping[str, object]],
     commit: Mapping[str, object],
     now: datetime,
+    stack_context: Mapping[str, object] | None = None,
 ) -> tuple[Mapping[str, object], dict[str, object]]:
-    boundary = _event_boundary(event)
+    boundary = _event_boundary(event, stack_context)
     head_commit = cast(str, boundary["head_commit"])
     tree_sha = _commit_tree(commit, head_commit)
     matches: list[tuple[Mapping[str, object], dict[str, object]]] = []
@@ -195,9 +203,12 @@ def validate_authority(
     commit: Mapping[str, object],
     permission: Mapping[str, object],
     now: datetime,
+    stack_context: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Return an immutable receipt for one exact live authority capability."""
-    comment, authority = _matching_authority(event, comments, commit, now)
+    comment, authority = _matching_authority(
+        event, comments, commit, now, stack_context
+    )
     permission_user = _object(permission.get("user"))
     if permission.get("permission") not in {"write", "admin"} or permission_user.get(
         "login"
@@ -297,18 +308,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _build_parser().parse_args(argv)
     try:
         event = _read_json(arguments.event, MAX_EVENT_BYTES)
-        boundary = _event_boundary(event)
         token = os.environ.get("GITHUB_TOKEN", "")
         api_url = os.environ.get("GITHUB_API_URL", "")
         if not token or api_url != "https://api.github.com":
             raise _reject()
+        # Import exclusively from the immutable policy checkout, never candidate bytes.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from requirements_stack_context import resolve_stack_context
+
+        stack_context = resolve_stack_context(
+            dict(event), lambda path: _api_json(path, token)[0]
+        )
+        boundary = _event_boundary(event, stack_context)
         repository = cast(str, boundary["repository"])
         pull_request = cast(int, boundary["pull_request"])
         head_commit = cast(str, boundary["head_commit"])
         commit, _ = _api_json(f"/repos/{repository}/git/commits/{head_commit}", token)
         comments = _comments(token, repository, pull_request)
         _, provisional = _matching_authority(
-            event, comments, _object(commit), datetime.now(UTC)
+            event, comments, _object(commit), datetime.now(UTC), stack_context
         )
         signer = cast(str, provisional["signer_login"])
         encoded_signer = urllib.parse.quote(signer, safe="")
@@ -322,6 +340,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _object(commit),
             _object(permission),
             datetime.now(UTC),
+            stack_context,
         )
     except ValueError as error:
         sys.stderr.write(f"Trusted Requirements authority failed: {error}\n")

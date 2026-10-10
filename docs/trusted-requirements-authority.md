@@ -61,3 +61,10 @@ existing expiry, canonical encoding, edit-state and live permission controls.
 Rollback is a normally reviewed revert of the policy implementation while retaining
 the required-workflow rule. Downstream PRs then fail closed until restacked onto a
 protected base or a repaired policy is reviewed. Do not disable required gates.
+
+Validation on 2026-10-11: the original policy failed the valid stack regression
+(1 failed, 25 passed). The implementation passes all 26 tests. The copied adapter
+is byte-identical to the core prerequisite and uses only the Python standard
+library. CI installs its test runner from an independent hash-protected lock;
+the protected authority workflow still installs no dependencies and executes
+only the immutable organization checkout.
