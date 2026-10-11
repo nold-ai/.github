@@ -76,3 +76,10 @@ fail before repair. All 57 policy controls pass after repair, retaining the
 original 26 authorization and stack controls. The copied core/organization
 adapter remains identical. Git ref rules are documented at
 https://git-scm.com/docs/git-check-ref-format (accessed 2026-10-11).
+
+
+Ordinary non-stacked forks targeting a protected branch retain their own proof
+boundary. The adapter binds the fork repository ID/name to live API data and
+still rejects native fork parents, foreign bases and stale event identities.
+Regression evidence: one failed/three passed before repair; all 61 policy
+controls pass after repair. Exact-head capability and member checks are unchanged.
