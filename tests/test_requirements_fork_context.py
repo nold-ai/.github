@@ -23,8 +23,7 @@ print(json.dumps(resolve_stack_context(payload["event"],lambda path:payload["rou
 """
 
 
-@pytest.mark.parametrize("failure", [None, "native-fork", "foreign-base", "stale-head-repository"])
-def test_ordinary_fork_context_preserves_own_proof_boundary(failure: str | None) -> None:
+def _fork_payload(failure: str | None) -> dict[str, object]:
     fixture = json.loads(FIXTURE.read_text())
     pull = copy.deepcopy(fixture["event"]["pull_request"])
     pull.update(state="open", stack=None)
@@ -37,9 +36,14 @@ def test_ordinary_fork_context_preserves_own_proof_boundary(failure: str | None)
     event = {"repository": fixture["event"]["repository"], "pull_request": copy.deepcopy(pull)}
     if failure == "stale-head-repository":
         pull["head"]["repo"]["full_name"] = "outside/other"
+    return {"event": event, "routes": {"/repos/nold-ai/specfact-cli/pulls/727": pull}}
+
+
+@pytest.mark.parametrize("failure", [None, "native-fork", "foreign-base", "stale-head-repository"])
+def test_ordinary_fork_context_preserves_own_proof_boundary(failure: str | None) -> None:
     result = subprocess.run(
         [sys.executable, "-I", "-S", "-c", PROBE, str(SCRIPT_DIR)],
-        input=json.dumps({"event": event, "routes": {"/repos/nold-ai/specfact-cli/pulls/727": pull}}),
+        input=json.dumps(_fork_payload(failure)),
         capture_output=True,
         text=True,
         check=False,
