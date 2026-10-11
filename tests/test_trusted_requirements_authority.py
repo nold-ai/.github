@@ -8,6 +8,7 @@ from types import ModuleType
 
 import pytest
 
+
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / ".github" / "scripts" / "trusted_requirements_authority.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "trusted-requirements-authority.yml"
@@ -295,3 +296,61 @@ def test_api_transport_is_fixed_to_github_and_rejects_absolute_urls(
         module._api_json("https://attacker.invalid/", "token")
 
     assert requests == [("GET", "/rate_limit")]
+
+
+@pytest.mark.parametrize(
+    "failure", (None, "missing-comment", "unrelated-parent", "stale-event")
+)
+def test_native_stack_member_authority_preserves_live_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str | None
+) -> None:
+    module = _module()
+    fixture = json.loads(
+        (ROOT / "tests/fixtures/native_stack_context.json").read_text()
+    )
+    event = fixture["event"]
+    routes = fixture["routes"]
+    pull = event["pull_request"]
+    head = pull["head"]["sha"]
+    comments = [
+        _comment(
+            _authority(
+                pull_request=pull["number"],
+                base_ref=pull["base"]["ref"],
+                head_branch=pull["head"]["ref"],
+                head_commit=head,
+            )
+        )
+    ]
+    if failure == "missing-comment":
+        comments = []
+    elif failure == "unrelated-parent":
+        compare = next(key for key in routes if "/compare/" in key)
+        routes[compare]["merge_base_commit"]["sha"] = "f" * 40
+    elif failure == "stale-event":
+        event = json.loads(json.dumps(event))
+        event["pull_request"]["head"]["sha"] = "d" * 40
+    routes[f"/repos/nold-ai/specfact-cli/git/commits/{head}"] = {
+        "sha": head,
+        "tree": {"sha": TREE},
+    }
+    routes[
+        f"/repos/nold-ai/specfact-cli/issues/{pull['number']}/comments?per_page=100&page=1"
+    ] = comments
+    routes["/repos/nold-ai/specfact-cli/collaborators/reviewer/permission"] = {
+        "permission": "write",
+        "user": {"login": "reviewer"},
+    }
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            return NOW
+
+    monkeypatch.setattr(module, "datetime", Clock)
+    monkeypatch.setattr(module, "_api_json", lambda path, _token: (routes[path], {}))
+    monkeypatch.setenv("GITHUB_TOKEN", "unit-test-token")
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.com")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event))
+    assert module.main(["--event", str(event_path)]) == (0 if failure is None else 1)
