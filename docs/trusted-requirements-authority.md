@@ -83,3 +83,9 @@ boundary. The adapter binds the fork repository ID/name to live API data and
 still rejects native fork parents, foreign bases and stale event identities.
 Regression evidence: one failed/three passed before repair; all 61 policy
 controls pass after repair. Exact-head capability and member checks are unchanged.
+
+
+Proof-context CLI validation derives the unique root merge base from the exact
+authenticated Git objects when the protected branch has advanced. The authority
+imports only the data resolver, with no Git execution. Two genuine Git-history
+regressions fail before repair; all 63 policy controls pass after repair.

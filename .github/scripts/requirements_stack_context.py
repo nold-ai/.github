@@ -229,6 +229,17 @@ def _github_json(path: str) -> object:
     return cast(object, json.loads(result.stdout))
 
 
+def _proof_merge_base(base: str, head: str) -> str:
+    result = subprocess.run(
+        ["git", "merge-base", "--all", _sha(base), _sha(head)],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=20,
+    )
+    return _sha(result.stdout.strip())
+
+
 def main(argv: list[str] | None = None) -> int:
     """Write a deterministic context without executing any pull-request bytes."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -240,6 +251,9 @@ def main(argv: list[str] | None = None) -> int:
             _reject()
         event = _object(json.loads(args.event.read_text()))
         context = resolve_stack_context(event, _github_json)
+        context["proof_base_commit"] = _proof_merge_base(
+            _sha(context["proof_base_commit"]), _sha(context["proof_head_commit"])
+        )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(context, indent=2, sort_keys=True) + "\n")
     except (OSError, ValueError, subprocess.SubprocessError):
