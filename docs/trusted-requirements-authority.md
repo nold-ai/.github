@@ -68,3 +68,11 @@ is byte-identical to the core prerequisite and uses only the Python standard
 library. CI installs its test runner from an independent hash-protected lock;
 the protected authority workflow still installs no dependencies and executes
 only the immutable organization checkout.
+
+Additional ref compatibility review on 2026-10-11: the initial adapter rejects
+valid Git branch characters and accepts hidden/lock-suffix components. The
+31 literal branch controls compare its data-only syntax checks with Git; 11
+fail before repair. All 57 policy controls pass after repair, retaining the
+original 26 authorization and stack controls. The copied core/organization
+adapter remains identical. Git ref rules are documented at
+https://git-scm.com/docs/git-check-ref-format (accessed 2026-10-11).
