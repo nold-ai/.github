@@ -784,8 +784,8 @@ def historical(
     require(
         type(revision) is str and bool(SHA.fullmatch(revision)), "origin-workflow-sha"
     )
-    require(revision in {head, subject["merge_commit_sha"]}, "origin-source")
-    if revision != head:
+    current_merge = subject["merge_commit_sha"]
+    if revision != head and revision == current_merge:
         merge = api.obj(f"/repos/{REPO}/git/commits/{revision}")
         require(
             merge.get("sha") == revision
@@ -793,6 +793,39 @@ def historical(
             in [object_value(parent).get("sha") for parent in merge.get("parents", [])],
             "origin-merge",
         )
+    elif revision != head:
+        require(
+            all(
+                type(value) is str and bool(SHA.fullmatch(value))
+                for value in (current_merge, head, subject["head_tree"])
+            ),
+            "origin-source",
+        )
+        ancestry = []
+        for identity in (revision, current_merge):
+            commit = object_value(api.obj(f"/repos/{REPO}/git/commits/{identity}"))
+            verification = object_value(commit.get("verification"))
+            require(
+                commit.get("sha") == identity
+                and object_value(commit.get("tree")).get("sha") == subject["head_tree"]
+                and verification.get("verified") is True
+                and verification.get("reason") == "valid",
+                "origin-source",
+            )
+            parents = commit.get("parents")
+            require(type(parents) is list and len(parents) == 2, "origin-source")
+            parent_shas = [object_value(parent).get("sha") for parent in parents]
+            require(
+                all(
+                    type(value) is str and bool(SHA.fullmatch(value))
+                    for value in parent_shas
+                )
+                and parent_shas[1] == head
+                and parent_shas[0] != head,
+                "origin-source",
+            )
+            ancestry.append(parent_shas)
+        require(ancestry[0] == ancestry[1], "origin-source")
     require(
         api.contents(WORKFLOW, revision) == api.contents(WORKFLOW, head),
         "origin-workflow-bytes",

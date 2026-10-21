@@ -670,6 +670,185 @@ def test_historical_origin_fails_closed(monkeypatch, mutation):
         p.historical(api, subject, 12, 1, 13, 14)
 
 
+def equivalent_merge_api(monkeypatch):
+    api, subject, origin, _, _, verified = historical_api(monkeypatch)
+    origin["workflow_sha"] = "a" * 40
+    commits = {
+        revision: {
+            "sha": revision,
+            "tree": {"sha": subject["head_tree"]},
+            "parents": [{"sha": "c" * 40}, {"sha": HEAD}],
+            "verification": {"verified": True, "reason": "valid"},
+        }
+        for revision in (origin["workflow_sha"], subject["merge_commit_sha"])
+    }
+    original = api.obj
+    api.obj = lambda path: (
+        commits[path.rsplit("/", 1)[1]] if "/git/commits/" in path else original(path)
+    )
+    return api, subject, origin, commits, verified
+
+
+def test_historical_equivalent_signed_merge_preserves_attested_source(monkeypatch):
+    api, subject, origin, _, verified = equivalent_merge_api(monkeypatch)
+    result = p.historical(api, subject, 12, 1, 13, 14)
+    assert result["workflow_sha"] == origin["workflow_sha"]
+    assert result["workflow_sha"] != subject["merge_commit_sha"]
+    assert verified == [
+        (p.canonical(origin), b"fixture signature", origin["workflow_sha"])
+    ]
+
+
+@pytest.mark.parametrize("side", ["origin", "current"])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("sha", "d" * 40),
+        ("sha", True),
+        ("tree", {"sha": "d" * 40}),
+        ("tree", {"sha": True}),
+        ("tree", {"sha": "short"}),
+        ("tree", {}),
+        ("tree", None),
+        ("tree", []),
+        ("verification", {"verified": False, "reason": "valid"}),
+        ("verification", {"verified": 1, "reason": "valid"}),
+        ("verification", {"verified": True, "reason": "unsigned"}),
+        ("verification", {"verified": True}),
+        ("verification", {}),
+        ("verification", True),
+        ("verification", []),
+        ("parents", [{"sha": "d" * 40}, {"sha": HEAD}]),
+        ("parents", [{"sha": HEAD}, {"sha": "c" * 40}]),
+        ("parents", [{"sha": "c" * 40}, {"sha": "d" * 40}]),
+        ("parents", [{"sha": HEAD}]),
+        ("parents", [{"sha": "c" * 40}, {"sha": HEAD}, {"sha": "d" * 40}]),
+        ("parents", [{"sha": True}, {"sha": HEAD}]),
+        ("parents", [{"sha": "short"}, {"sha": HEAD}]),
+        ("parents", [True, {"sha": HEAD}]),
+        ("parents", [{}, {"sha": HEAD}]),
+        ("parents", {}),
+        ("parents", None),
+    ],
+)
+def test_historical_equivalent_merge_metadata_refuses(monkeypatch, side, field, value):
+    api, subject, origin, commits, verified = equivalent_merge_api(monkeypatch)
+    revision = (
+        origin["workflow_sha"] if side == "origin" else subject["merge_commit_sha"]
+    )
+    commits[revision][field] = value
+    with pytest.raises(p.Refused):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+@pytest.mark.parametrize("revision", [None, True, {}, [], "short", "A" * 40])
+def test_historical_equivalent_merge_requires_current_identity(monkeypatch, revision):
+    api, subject, _, _, verified = equivalent_merge_api(monkeypatch)
+    subject["merge_commit_sha"] = revision
+    with pytest.raises(p.Refused):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+@pytest.mark.parametrize("record", [None, True, [], {}])
+@pytest.mark.parametrize("side", ["origin", "current"])
+def test_historical_equivalent_merge_requires_commit_object(monkeypatch, record, side):
+    api, subject, origin, commits, verified = equivalent_merge_api(monkeypatch)
+    revision = (
+        origin["workflow_sha"] if side == "origin" else subject["merge_commit_sha"]
+    )
+    commits[revision] = record
+    with pytest.raises(p.Refused):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+@pytest.mark.parametrize(
+    "parents",
+    [
+        [{"sha": "c" * 40}, {"sha": "d" * 40}],
+        [{"sha": HEAD}, {"sha": "c" * 40}],
+        [{"sha": HEAD}, {"sha": HEAD}],
+        [{"sha": True}, {"sha": HEAD}],
+        [{"sha": "short"}, {"sha": HEAD}],
+    ],
+)
+def test_historical_matching_ancestry_still_requires_head_and_full_shas(
+    monkeypatch, parents
+):
+    api, subject, _, commits, verified = equivalent_merge_api(monkeypatch)
+    for commit in commits.values():
+        commit["parents"] = parents
+    with pytest.raises(p.Refused, match="origin-source"):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+@pytest.mark.parametrize("tree", [None, True, {}, "short"])
+def test_historical_matching_trees_still_require_full_subject_tree(monkeypatch, tree):
+    api, subject, _, commits, verified = equivalent_merge_api(monkeypatch)
+    subject["head_tree"] = tree
+    for commit in commits.values():
+        commit["tree"]["sha"] = tree
+    with pytest.raises(p.Refused, match="origin-source"):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+@pytest.mark.parametrize("revision", [None, True, {}, [], "short"])
+def test_historical_equivalent_merge_requires_full_origin_identity(
+    monkeypatch, revision
+):
+    api, subject, origin, _, verified = equivalent_merge_api(monkeypatch)
+    origin["workflow_sha"] = revision
+    with pytest.raises(p.Refused, match="origin-workflow-sha"):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+def test_historical_current_merge_keeps_existing_acceptance(monkeypatch):
+    api, subject, origin, _, _, verified = historical_api(monkeypatch)
+    origin["workflow_sha"] = subject["merge_commit_sha"]
+    result = p.historical(api, subject, 12, 1, 13, 14)
+    assert result["workflow_sha"] == subject["merge_commit_sha"]
+    assert verified[0][2] == subject["merge_commit_sha"]
+
+
+def test_historical_equivalent_merge_keeps_source_mapping_guard(monkeypatch):
+    api, subject, _, _, _ = equivalent_merge_api(monkeypatch)
+    api.contents = lambda *args: b"changed"
+    with pytest.raises(p.Refused, match="live-source-mapping"):
+        p.historical(api, subject, 12, 1, 13, 14)
+
+
+def test_historical_equivalent_merge_keeps_workflow_byte_guard(monkeypatch):
+    api, subject, _, _, verified = equivalent_merge_api(monkeypatch)
+    api.contents = lambda path, revision: revision.encode()
+    with pytest.raises(p.Refused, match="origin-workflow-bytes"):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert verified == []
+
+
+def test_historical_equivalent_merge_keeps_attestation_guard(monkeypatch):
+    verify_origin = p.verify_origin
+    calls = []
+
+    def reject(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1)
+
+    api, subject, origin, _, _ = equivalent_merge_api(monkeypatch)
+    monkeypatch.setattr(p, "verify_origin", verify_origin)
+    monkeypatch.setattr(p.subprocess, "run", reject)
+    with pytest.raises(p.Refused, match="origin-signature"):
+        p.historical(api, subject, 12, 1, 13, 14)
+    assert len(calls) == 1
+    command = calls[0]
+    assert command[command.index("--source-digest") + 1] == origin["workflow_sha"]
+    assert command[command.index("--signer-digest") + 1] == origin["workflow_sha"]
+
+
 def test_other_pr_grant_does_not_transfer(monkeypatch):
     api, c, req, _ = fake_live(monkeypatch)
     req["pull_request"] = 782
