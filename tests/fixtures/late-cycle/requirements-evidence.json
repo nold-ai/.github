@@ -1,0 +1,813 @@
+{
+  "delivery_status": "incomplete",
+  "execution_plan": {
+    "cases": [
+      {
+        "case_id": "ADMISSION-ISOLATED-NATIVE-ORIGIN",
+        "intent": "Require an isolated CI-only origin attester with immutable official actions and no candidate execution.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_origin_attestation_survives_producer_failure",
+        "observable": "The manifest validates native artifact metadata and CI wires an isolated attestation step after producer failure.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_origin_attestation_survives_producer_failure",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "ADMISSION-NATIVE-BYTES-AND-ENFORCEMENT",
+        "intent": "Exercise all three real reconciliation boundaries, preserve raw native bytes and enforce policy exit codes.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_all_three_lanes_preserve_native_bytes_and_enforce_policy_exit",
+        "observable": "Native success remains independent and scoped failure proceeds only through the enforced separate decision.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_all_three_lanes_preserve_native_bytes_and_enforce_policy_exit",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "ADMISSION-SCOPE-AND-PROOF-GUARDS",
+        "intent": "Reject invalid PR contexts and other branches and preserve invalid native RED refusal.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_fresh_and_final_preserve_scope_and_invalid_red_guards",
+        "observable": "Unapproved scope and invalid native proof cannot silently acquire admission.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_fresh_and_final_preserve_scope_and_invalid_red_guards",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXACT-CVE",
+        "intent": "Approve only the exact MCP CVE on its review date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-cve]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-cve]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXACT-GHSA",
+        "intent": "Approve the same reviewed advisory under its exact GHSA primary ID.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-ghsa]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-ghsa]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXPIRED",
+        "intent": "Reject the register after its expiry date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expired]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expired]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXPIRY-DAY",
+        "intent": "Keep the review valid through its inclusive expiry date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expiry-day]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expiry-day]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-FUTURE-REVIEW",
+        "intent": "Reject a review date later than the audit date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[future-review]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[future-review]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-MIXED-ADVISORIES",
+        "intent": "Reject a graph containing both waived and unreviewed advisories.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[mixed-advisories]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[mixed-advisories]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-OFFICIAL-EXCEPTION-EXACT",
+        "intent": "Bind the only exception to the official MCP package/version/advisory and review/expiry dates.",
+        "method": "test",
+        "node_id": "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+        "observable": "The graph remains official and the exception is exact and time bounded.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-OTHER-VERSION",
+        "intent": "Reject the same advisory for another package version.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[other-version]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[other-version]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-SKIPPED",
+        "intent": "Reject incomplete strict-audit coverage even with a matching advisory.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[skipped]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[skipped]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-UNRELATED-ADVISORY",
+        "intent": "Reject an advisory outside the approved IDs.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[unrelated-advisory]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[unrelated-advisory]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "CERTIFI-COMPROMISED-ROOT-ABSENT",
+        "intent": "Verify the candidate lock/export wheel hash and parse its inert CA data with trusted SSL code.",
+        "method": "test",
+        "node_id": "tests/unit/security/test_frozen_dependency_artifacts.py::test_frozen_certifi_bundle_excludes_compromised_root",
+        "observable": "The trust store is nonempty and excludes the compromised emSign ECC Root CA - G3 DER SHA256.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:exclude-compromised-certificate-authorities-from-delivered-trust",
+        "runner": "pytest",
+        "scenario_id": "exclude-compromised-certificate-authorities-from-delivered-trust",
+        "selector": {
+          "node_id": "tests/unit/security/test_frozen_dependency_artifacts.py::test_frozen_certifi_bundle_excludes_compromised_root",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "runtime-floor",
+            "kind": "config_file",
+            "locator": "pyproject.toml"
+          },
+          {
+            "id": "frozen-delivery",
+            "kind": "config_file",
+            "locator": "requirements/ci/locked.txt"
+          },
+          {
+            "id": "frozen-trust-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_frozen_dependency_artifacts.py"
+          }
+        ]
+      }
+    ],
+    "mapping_digest": "sha256:f35a011f01afd89ec0bed94fe840233ed6af4ff4a8ac4f707026146ab8127223",
+    "plan_digest": "sha256:1982a9fe578424763d42e4eb5bdde669235930522211e9f3a25255a10852cb3c"
+  },
+  "execution_proof": {
+    "junit_digest": "sha256:e5a1004b9128d21df6bc4210c78cc396fdb5bed75601d1a6d736a66d3a0b5bfb",
+    "run_stage": "final",
+    "selectors": [
+      "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_all_three_lanes_preserve_native_bytes_and_enforce_policy_exit",
+      "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_fresh_and_final_preserve_scope_and_invalid_red_guards",
+      "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_origin_attestation_survives_producer_failure",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-cve]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-ghsa]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expired]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expiry-day]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[future-review]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[mixed-advisories]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[other-version]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[skipped]",
+      "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[unrelated-advisory]",
+      "tests/unit/security/test_frozen_dependency_artifacts.py::test_frozen_certifi_bundle_excludes_compromised_root",
+      "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception"
+    ],
+    "source_ref": "03423ac0ae9c148e2707bed6a21f6bb09fae3518"
+  },
+  "findings": [
+    "prior-red-proof-invalid"
+  ],
+  "gate_decision": "fail",
+  "implementation_evidence": "not-available",
+  "mapping_digest": "sha256:f35a011f01afd89ec0bed94fe840233ed6af4ff4a8ac4f707026146ab8127223",
+  "observed_maturity": "incomplete",
+  "plan": {
+    "cases": [
+      {
+        "case_id": "ADMISSION-ISOLATED-NATIVE-ORIGIN",
+        "intent": "Require an isolated CI-only origin attester with immutable official actions and no candidate execution.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_origin_attestation_survives_producer_failure",
+        "observable": "The manifest validates native artifact metadata and CI wires an isolated attestation step after producer failure.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_origin_attestation_survives_producer_failure",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "ADMISSION-NATIVE-BYTES-AND-ENFORCEMENT",
+        "intent": "Exercise all three real reconciliation boundaries, preserve raw native bytes and enforce policy exit codes.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_all_three_lanes_preserve_native_bytes_and_enforce_policy_exit",
+        "observable": "Native success remains independent and scoped failure proceeds only through the enforced separate decision.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_all_three_lanes_preserve_native_bytes_and_enforce_policy_exit",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "ADMISSION-SCOPE-AND-PROOF-GUARDS",
+        "intent": "Reject invalid PR contexts and other branches and preserve invalid native RED refusal.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_fresh_and_final_preserve_scope_and_invalid_red_guards",
+        "observable": "Unapproved scope and invalid native proof cannot silently acquire admission.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "runner": "pytest",
+        "scenario_id": "admit-only-the-explicitly-approved-late-cycle-provenance-gap",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_requirements_late_cycle_workflow.py::test_fresh_and_final_preserve_scope_and_invalid_red_guards",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "requirements-workflow",
+            "kind": "config_file",
+            "locator": ".github/workflows/requirements-evidence.yml"
+          },
+          {
+            "id": "scoped-admission-controls",
+            "kind": "test",
+            "locator": "tests/unit/scripts/test_requirements_late_cycle_workflow.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXACT-CVE",
+        "intent": "Approve only the exact MCP CVE on its review date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-cve]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-cve]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXACT-GHSA",
+        "intent": "Approve the same reviewed advisory under its exact GHSA primary ID.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-ghsa]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[exact-ghsa]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXPIRED",
+        "intent": "Reject the register after its expiry date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expired]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expired]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-EXPIRY-DAY",
+        "intent": "Keep the review valid through its inclusive expiry date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expiry-day]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[expiry-day]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-FUTURE-REVIEW",
+        "intent": "Reject a review date later than the audit date.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[future-review]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[future-review]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-MIXED-ADVISORIES",
+        "intent": "Reject a graph containing both waived and unreviewed advisories.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[mixed-advisories]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[mixed-advisories]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-OFFICIAL-EXCEPTION-EXACT",
+        "intent": "Bind the only exception to the official MCP package/version/advisory and review/expiry dates.",
+        "method": "test",
+        "node_id": "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+        "observable": "The graph remains official and the exception is exact and time bounded.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-OTHER-VERSION",
+        "intent": "Reject the same advisory for another package version.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[other-version]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[other-version]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-SKIPPED",
+        "intent": "Reject incomplete strict-audit coverage even with a matching advisory.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[skipped]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[skipped]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "MCP-UNRELATED-ADVISORY",
+        "intent": "Reject an advisory outside the approved IDs.",
+        "method": "test",
+        "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[unrelated-advisory]",
+        "observable": "Only the approved version/advisory within its approval window succeeds; unrelated/mixed advisories, other versions, skipped subjects and invalid dates fail.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:bound-the-temporary-official-mcp-advisory-exception",
+        "runner": "pytest",
+        "scenario_id": "bound-the-temporary-official-mcp-advisory-exception",
+        "selector": {
+          "node_id": "tests/unit/scripts/test_security_audit_gate.py::test_committed_mcp_exception_is_exact_and_time_bounded[unrelated-advisory]",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "reviewed-exception",
+            "kind": "config_file",
+            "locator": "ci/vulnerability-audit-exceptions.json"
+          },
+          {
+            "id": "exception-policy-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_release_promotion_security_gates.py"
+          }
+        ]
+      },
+      {
+        "case_id": "CERTIFI-COMPROMISED-ROOT-ABSENT",
+        "intent": "Verify the candidate lock/export wheel hash and parse its inert CA data with trusted SSL code.",
+        "method": "test",
+        "node_id": "tests/unit/security/test_frozen_dependency_artifacts.py::test_frozen_certifi_bundle_excludes_compromised_root",
+        "observable": "The trust store is nonempty and excludes the compromised emSign ECC Root CA - G3 DER SHA256.",
+        "requirement_id": "openspec:isolate-semgrep-security-runtime:isolated-scanner-runtime:exclude-compromised-certificate-authorities-from-delivered-trust",
+        "runner": "pytest",
+        "scenario_id": "exclude-compromised-certificate-authorities-from-delivered-trust",
+        "selector": {
+          "node_id": "tests/unit/security/test_frozen_dependency_artifacts.py::test_frozen_certifi_bundle_excludes_compromised_root",
+          "runner": "pytest"
+        },
+        "source": "openspec/changes/isolate-semgrep-security-runtime",
+        "touchpoints": [
+          {
+            "id": "runtime-floor",
+            "kind": "config_file",
+            "locator": "pyproject.toml"
+          },
+          {
+            "id": "frozen-delivery",
+            "kind": "config_file",
+            "locator": "requirements/ci/locked.txt"
+          },
+          {
+            "id": "frozen-trust-test",
+            "kind": "test",
+            "locator": "tests/unit/security/test_frozen_dependency_artifacts.py"
+          }
+        ]
+      }
+    ],
+    "mapping_digest": "sha256:f35a011f01afd89ec0bed94fe840233ed6af4ff4a8ac4f707026146ab8127223",
+    "plan_digest": "sha256:1982a9fe578424763d42e4eb5bdde669235930522211e9f3a25255a10852cb3c"
+  },
+  "plan_digest": "sha256:1982a9fe578424763d42e4eb5bdde669235930522211e9f3a25255a10852cb3c",
+  "required_maturity": "verified",
+  "schema_version": "2",
+  "verdict": "failed"
+}
