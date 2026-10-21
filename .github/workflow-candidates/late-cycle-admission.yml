@@ -1,0 +1,81 @@
+---
+name: Late-cycle admission request preparation
+'on':
+  workflow_dispatch:
+    inputs:
+      policy_revision:
+        required: true
+        type: string
+      native_run_id:
+        required: true
+        type: string
+      native_run_attempt:
+        required: true
+        type: string
+      native_artifact_id:
+        required: true
+        type: string
+      origin_artifact_id:
+        required: true
+        type: string
+      signer:
+        required: true
+        type: string
+      expires_at:
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+  attestations: read
+  issues: read
+  pull-requests: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: nold-ai/.github
+          ref: ${{ inputs.policy_revision }}
+          persist-credentials: false
+      - name: Prepare separately reviewable request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POLICY_REVISION: ${{ inputs.policy_revision }}
+          NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+          NATIVE_RUN_ATTEMPT: ${{ inputs.native_run_attempt }}
+          NATIVE_ARTIFACT_ID: ${{ inputs.native_artifact_id }}
+          ORIGIN_ARTIFACT_ID: ${{ inputs.origin_artifact_id }}
+          SIGNER: ${{ inputs.signer }}
+          EXPIRES_AT: ${{ inputs.expires_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$POLICY_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$POLICY_REVISION"
+          gh api repos/nold-ai/specfact-cli/pulls --method GET \
+            -f state=open -f base=dev -f per_page=100 \
+            -f head=nold-ai:codex/dependency-hotfix-admission > pulls.json
+          python3 -I -S - <<'PY'
+          import json
+          from pathlib import Path
+          pulls = json.loads(Path('pulls.json').read_text())
+          if not isinstance(pulls, list) or len(pulls) != 1:
+              raise SystemExit('Expected exactly one open follow-up PR')
+          pull = pulls[0]
+          subject = {
+              'repository': {'full_name': 'nold-ai/specfact-cli'},
+              'pull_request': pull,
+          }
+          Path('subject.json').write_text(json.dumps(subject))
+          PY
+          python3 -I -S .github/scripts/late_cycle_admission.py request \
+            --event subject.json \
+            --run-id "$NATIVE_RUN_ID" \
+            --run-attempt "$NATIVE_RUN_ATTEMPT" \
+            --artifact-id "$NATIVE_ARTIFACT_ID" \
+            --origin-artifact-id "$ORIGIN_ARTIFACT_ID" \
+            --expires-at "$EXPIRES_AT" --signer "$SIGNER" \
+            --policy-revision "$POLICY_REVISION" --output approval-request.txt
+          cat approval-request.txt >> "$GITHUB_STEP_SUMMARY"
