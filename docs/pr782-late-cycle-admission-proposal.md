@@ -40,7 +40,7 @@ This command prepares text only. It does not post a comment or grant permission.
 
 ## Native origin
 
-An isolated core CI job named `Native Requirements Origin` executes no candidate code. It downloads the original native artifact ZIP as inert bytes and attests a canonical `origin.json` manifest through GitHub Actions. The manifest binds the original artifact ID and SHA-256, repository, run ID and attempt, PR head, workflow path, and actual `job.workflow_sha`. Its attempt-specific origin artifact contains only `origin.json` and `origin.bundle.jsonl`.
+An isolated core CI job named `Native Requirements Origin` executes no candidate code. It downloads the original native artifact ZIP as inert bytes and attests a canonical `origin.json` manifest through GitHub Actions. The manifest binds the original artifact ID and SHA-256, repository, run ID and attempt, PR head, workflow path, and actual `github.workflow_sha` of this directly defined job. Its attempt-specific origin artifact contains only `origin.json` and `origin.bundle.jsonl`.
 
 The evaluator verifies that manifest using official `gh attestation verify` flags for repository, exact signer workflow, signer digest, source digest, and GitHub-hosted runners. It does not guess the verifier's JSON output schema. It independently fetches and hashes the native ZIP, checks API run/artifact/PR associations, and compares the authenticated workflow revision to live head or the actual live PR merge commit containing head. Executed workflow bytes must equal the reviewed head's workflow bytes. API `head_sha` alone is never execution provenance.
 
