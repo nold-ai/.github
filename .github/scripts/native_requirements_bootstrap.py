@@ -43,6 +43,11 @@ class RedScope:
     tool_filenames: tuple[str, ...] = (
         "build-locked.txt", "build-requirements.in", "locked.txt", "requirements.in"
     )
+    tool_directory: str = ".github/native-tools/dev786"
+    runtime_descriptor_filename: str = "runtime.json"
+    proof_base_tree: str = "24112d8c9983333f9059283965230348f718b74c"
+    module_repository: str = "nold-ai/specfact-cli-modules"
+    module_repository_id: int = 1162937710
     manifest_filename: str = "tool-files.json"
     max_manifest_bytes: int = 16384
     max_input_bytes: int = 4194304
@@ -341,35 +346,13 @@ def verify_tool_files(
             raw_manifest = _read_tool_file(
                 directory_fd, _SCOPE.manifest_filename, _SCOPE.max_manifest_bytes
             )
-            manifest_digest = hashlib.sha256(raw_manifest).hexdigest()
-            if manifest_digest != expected_digest:
-                raise ValueError("tool files rejected: manifest digest mismatch")
-            try:
-                manifest = json.loads(
-                    raw_manifest.decode("utf-8"), object_pairs_hook=_unique_manifest_object
-                )
-            except (ValueError, RecursionError) as error:
-                raise ValueError("tool files rejected: invalid manifest JSON") from error
-            if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "files"}:
-                raise ValueError("tool files rejected: invalid manifest fields")
-            if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
-                raise ValueError("tool files rejected: invalid manifest schema version")
-            files = manifest["files"]
-            if not isinstance(files, dict) or set(files) != set(_SCOPE.tool_filenames):
-                raise ValueError("tool files rejected: invalid manifest filenames")
-            digests: list[tuple[str, str]] = []
+            captured = {_SCOPE.manifest_filename: raw_manifest}
             for name in _SCOPE.tool_filenames:
-                recorded_digest = _hex_digest(
-                    files[name], 64, f"tool files rejected: invalid digest for {name}"
-                )
-                data = _read_tool_file(directory_fd, name, _SCOPE.max_input_bytes)
-                digest = hashlib.sha256(data).hexdigest()
-                if digest != recorded_digest:
-                    raise ValueError(f"tool files rejected: digest mismatch for {name}")
-                digests.append((name, digest))
+                captured[name] = _read_tool_file(directory_fd, name, _SCOPE.max_input_bytes)
+            digests = verify_tool_bytes(captured, expected_digest)
             if set(os.listdir(directory_fd)) != entries:
                 raise ValueError("tool files rejected: directory entries changed")
-            return VerifiedToolFiles(resolved, manifest_digest, tuple(sorted(digests)))
+            return VerifiedToolFiles(resolved, expected_digest, digests)
         finally:
             os.close(directory_fd)
     except (OSError, UnicodeError, RuntimeError) as error:
@@ -381,4 +364,39 @@ def verify_tool_bytes(
     files: Mapping[str, bytes], expected_manifest_sha256: str
 ) -> tuple[tuple[str, str], ...]:
     """Verify exact bounded captured manifest/input bytes without filesystem authority."""
-    raise NotImplementedError("captured tool byte verification is not implemented")
+    expected_digest = _hex_digest(
+        expected_manifest_sha256, 64, "tool files rejected: invalid expected manifest digest"
+    )
+    names = {*_SCOPE.tool_filenames, _SCOPE.manifest_filename}
+    if not isinstance(files, Mapping) or set(files) != names:
+        raise ValueError("tool files rejected: invalid capture names")
+    captured = dict(files)
+    for name, raw in captured.items():
+        limit = (_SCOPE.max_manifest_bytes if name == _SCOPE.manifest_filename
+                 else _SCOPE.max_input_bytes)
+        if type(raw) is not bytes or not 1 <= len(raw) <= limit:
+            raise ValueError("tool files rejected: invalid captured bytes")
+    raw_manifest = captured[_SCOPE.manifest_filename]
+    if hashlib.sha256(raw_manifest).hexdigest() != expected_digest:
+        raise ValueError("tool files rejected: manifest digest mismatch")
+    try:
+        manifest = json.loads(
+            raw_manifest.decode("utf-8"), object_pairs_hook=_unique_manifest_object
+        )
+    except (ValueError, RecursionError) as error:
+        raise ValueError("tool files rejected: invalid manifest JSON") from error
+    if type(manifest) is not dict or set(manifest) != {"schema_version", "files"}:
+        raise ValueError("tool files rejected: invalid manifest fields")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
+        raise ValueError("tool files rejected: invalid manifest schema version")
+    recorded = manifest["files"]
+    if type(recorded) is not dict or set(recorded) != set(_SCOPE.tool_filenames):
+        raise ValueError("tool files rejected: invalid manifest filenames")
+    digests: list[tuple[str, str]] = []
+    for name in _SCOPE.tool_filenames:
+        expected = _hex_digest(recorded[name], 64, "tool files rejected: invalid input digest")
+        actual = hashlib.sha256(captured[name]).hexdigest()
+        if actual != expected:
+            raise ValueError(f"tool files rejected: digest mismatch for {name}")
+        digests.append((name, actual))
+    return tuple(sorted(digests))

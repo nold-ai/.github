@@ -496,10 +496,16 @@ class GitHub:
             and "#" not in path,
             "api-path",
         )
+        return self._https_get(
+            path, maximum=MAX_ZIP if archive else MAX_FILE,
+            accept="application/vnd.github+json", redirects="actions" if archive else "none",
+        )
+
+    def _https_get(self, path: str, *, maximum: int, accept: str, redirects: str) -> bytes:
         host, target = "api.github.com", path
         for redirect in range(3):
             headers = {
-                "Accept": "application/vnd.github+json",
+                "Accept": accept,
                 "User-Agent": "specfact-late-cycle-policy",
                 "X-GitHub-Api-Version": "2022-11-28",
             }
@@ -509,16 +515,18 @@ class GitHub:
             try:
                 connection.request("GET", target, headers=headers)
                 response = connection.getresponse()
-                if archive and response.status in {301, 302, 303, 307, 308}:
+                if redirects != "none" and response.status in {301, 302, 303, 307, 308}:
                     location = urllib.parse.urlsplit(response.getheader("Location", ""))
                     require(
                         location.scheme == "https"
                         and location.hostname is not None
                         and (
-                            location.hostname.endswith(".blob.core.windows.net")
-                            or location.hostname.endswith(
-                                ".actions.githubusercontent.com"
-                            )
+                            (redirects == "release" and
+                             location.netloc == "release-assets.githubusercontent.com")
+                            or (redirects == "actions" and (
+                                location.hostname.endswith(".blob.core.windows.net")
+                                or location.hostname.endswith(".actions.githubusercontent.com")
+                            ))
                         )
                         and location.port is None
                         and location.username is None
@@ -534,7 +542,6 @@ class GitHub:
                     )
                     continue
                 require(response.status == 200, "api-status")
-                maximum = MAX_ZIP if archive else MAX_FILE
                 raw = response.read(maximum + 1)
                 require(len(raw) <= maximum, "api-size")
                 return raw
@@ -562,11 +569,66 @@ class GitHub:
         self, repository: str, path: str, revision: str, *, max_bytes: int
     ) -> bytes:
         """Read a bounded canonical Git blob at one immutable revision."""
-        raise NotImplementedError
+        try:
+            require(
+                type(repository) is str
+                and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is not None
+                and all(part not in {".", ".."} for part in repository.split("/")),
+                "contents-repository",
+            )
+            require(
+                type(path) is str and len(path.encode("utf-8")) <= 1024
+                and all(part not in {"", ".", ".."} for part in path.split("/"))
+                and re.fullmatch(r"[A-Za-z0-9_./-]+", path) is not None,
+                "contents-path",
+            )
+            require(type(revision) is str and SHA.fullmatch(revision) is not None, "contents-revision")
+            require(type(max_bytes) is int and 0 < max_bytes <= 128 * 1024, "contents-bound")
+            value = self.obj(f"/repos/{repository}/contents/{path}?ref={revision}")
+            for key, expected in {
+                "type": "file", "encoding": "base64", "path": path,
+                "name": path.rsplit("/", 1)[-1],
+            }.items():
+                require(type(value.get(key)) is str and value[key] == expected, "contents-metadata")
+            size, content, blob = value.get("size"), value.get("content"), value.get("sha")
+            encoded_limit = 4 * ((max_bytes + 2) // 3)
+            require(
+                type(size) is int and 0 <= size <= max_bytes
+                and type(content) is str and len(content) <= 2 * encoded_limit
+                and type(blob) is str and SHA.fullmatch(blob) is not None,
+                "contents-size",
+            )
+            encoded = content.replace("\n", "")
+            require(len(encoded) <= encoded_limit, "contents-base64-size")
+            raw = base64.b64decode(encoded, validate=True)
+            require(
+                len(raw) == size and len(raw) <= max_bytes
+                and base64.b64encode(raw).decode("ascii") == encoded,
+                "contents-canonical",
+            )
+            actual_blob = hashlib.sha1(
+                b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw,
+                usedforsecurity=False,
+            ).hexdigest()
+            require(actual_blob == blob, "contents-blob")
+            return raw
+        except (ValueError, TypeError, OSError, http.client.HTTPException, OverflowError):
+            raise Refused("immutable-contents-unavailable") from None
 
     def release_asset(self, repository: str, asset_id: int, *, max_bytes: int) -> bytes:
         """Read one official release asset with a bounded credential-stripping transport."""
-        raise NotImplementedError
+        try:
+            require(type(repository) is str and repository in {
+                "astral-sh/uv", "astral-sh/python-build-standalone", "cli/cli",
+            }, "release-repository")
+            require(type(asset_id) is int and asset_id > 0, "release-id")
+            require(type(max_bytes) is int and 0 < max_bytes <= 64 * 1024 * 1024, "release-bound")
+            return self._https_get(
+                f"/repos/{repository}/releases/assets/{asset_id}", maximum=max_bytes,
+                accept="application/octet-stream", redirects="release",
+            )
+        except (ValueError, TypeError, OSError, http.client.HTTPException, OverflowError):
+            raise Refused("release-asset-unavailable") from None
 
     def comments(self, pull_request: int) -> list[dict[str, Any]]:
         result = []

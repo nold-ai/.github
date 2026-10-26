@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import http.client
 from collections.abc import Mapping
@@ -8,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import native_requirements_bootstrap as bootstrap
-from late_cycle_admission import MAX_FILE, GitHub, json_object
+from late_cycle_admission import GitHub, json_object
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,45 +55,12 @@ def _policy_main(api: GitHub, scope: bootstrap.RedScope) -> str:
     return _hex(value["object"]["sha"], 40)
 
 
-def _contents(api: GitHub, repository: str, path: str, revision: str) -> bytes:
-    value = api.obj(f"/repos/{repository}/contents/{path}?ref={revision}")
-    _fields(value, {
-        "type": "file", "encoding": "base64", "path": path,
-        "name": path.rsplit("/", 1)[-1],
-    })
-    limit = min(16384, MAX_FILE)
-    size = value.get("size")
-    content = value.get("content")
-    blob = _hex(value.get("sha"), 40)
-    encoded_limit = 4 * ((limit + 2) // 3)
-    if (
-        type(size) is not int or not 0 <= size <= limit
-        or type(content) is not str or len(content) > 2 * encoded_limit
-    ):
-        raise ValueError("native acquisition rejected: invalid contents size")
-    encoded = content.replace("\n", "")
-    if len(encoded) > encoded_limit:
-        raise ValueError("native acquisition rejected: oversized base64")
-    raw = base64.b64decode(encoded, validate=True)
-    if (
-        len(raw) > limit or len(raw) != size
-        or base64.b64encode(raw).decode("ascii") != encoded
-    ):
-        raise ValueError("native acquisition rejected: noncanonical contents")
-    # Git's blob identity includes the object kind and byte length, not just bytes.
-    actual_blob = hashlib.sha1(
-        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw,
-        usedforsecurity=False,
-    ).hexdigest()
-    if actual_blob != blob:
-        raise ValueError("native acquisition rejected: contents blob mismatch")
-    return raw
-
-
 def _selection(
     api: GitHub, scope: bootstrap.RedScope, index_commit: str
 ) -> ProtectedSelection:
-    raw = _contents(api, scope.policy_repository, scope.release_index, index_commit)
+    raw = api.immutable_contents(
+        scope.policy_repository, scope.release_index, index_commit, max_bytes=16384
+    )
     raw.decode("utf-8")
     index = json_object(raw)
     if set(index) != {
@@ -116,6 +82,35 @@ def _selection(
     )
 
 
+def _active_selection(
+    api: GitHub, scope: bootstrap.RedScope
+) -> tuple[ProtectedSelection, dict[str, object], dict[str, object]]:
+    policy = f"/repos/{scope.policy_repository}"
+    policy_repository = api.obj(policy)
+    _fields(policy_repository, {
+        "id": scope.policy_repository_id,
+        "name": scope.policy_repository.split("/")[1],
+        "full_name": scope.policy_repository, "owner/login": scope.owner,
+        "owner/id": scope.owner_id, "owner/type": "Organization",
+        "default_branch": scope.policy_branch,
+    })
+    index_commit = _policy_main(api, scope)
+    selection = _selection(api, scope, index_commit)
+    compare_path = f"{policy}/compare/{selection.policy_commit}...{index_commit}"
+    comparison = api.obj(compare_path)
+    _fields(comparison, {
+        "url": "https://api.github.com" + compare_path, "status": "ahead",
+        "base_commit/sha": selection.policy_commit,
+        "merge_base_commit/sha": selection.policy_commit,
+    })
+    for name in ("ahead_by", "behind_by"):
+        if name in comparison:
+            count = comparison[name]
+            if type(count) is not int or (count <= 0 if name == "ahead_by" else count != 0):
+                raise ValueError("native acquisition rejected: invalid comparison count")
+    return selection, policy_repository, comparison
+
+
 def acquire_red_context(*, runtime: Mapping[str, str], now: datetime) -> AcquiredRed:
     """Select protected policy and acquire the fresh fixed RED context."""
     try:
@@ -134,29 +129,8 @@ def acquire_red_context(*, runtime: Mapping[str, str], now: datetime) -> Acquire
             raise ValueError("native acquisition rejected: invalid run ID")
         api = _github()
         core = f"/repos/{scope.repository}"
-        policy = f"/repos/{scope.policy_repository}"
-        policy_repository = api.obj(policy)
-        _fields(policy_repository, {
-            "id": scope.policy_repository_id,
-            "name": scope.policy_repository.split("/")[1],
-            "full_name": scope.policy_repository, "owner/login": scope.owner,
-            "owner/id": scope.owner_id, "owner/type": "Organization",
-            "default_branch": scope.policy_branch,
-        })
-        index_commit = _policy_main(api, scope)
-        selection = _selection(api, scope, index_commit)
-        compare_path = f"{policy}/compare/{selection.policy_commit}...{index_commit}"
-        comparison = api.obj(compare_path)
-        _fields(comparison, {
-            "url": "https://api.github.com" + compare_path, "status": "ahead",
-            "base_commit/sha": selection.policy_commit,
-            "merge_base_commit/sha": selection.policy_commit,
-        })
-        for name in ("ahead_by", "behind_by"):
-            if name in comparison:
-                count = comparison[name]
-                if type(count) is not int or (count <= 0 if name == "ahead_by" else count != 0):
-                    raise ValueError("native acquisition rejected: invalid comparison count")
+        selection, policy_repository, comparison = _active_selection(api, scope)
+        index_commit = selection.index_commit
         snapshot = {
             "runtime": runtime,
             "policy_repository": policy_repository,
@@ -167,8 +141,8 @@ def acquire_red_context(*, runtime: Mapping[str, str], now: datetime) -> Acquire
             "dev_ref": api.obj(f"{core}/git/ref/heads/{scope.base_ref}"),
             "main_ref": api.obj(f"{core}/git/ref/heads/main"),
             "caller_run": api.obj(f"{core}/actions/runs/{run_id}"),
-            "caller_workflow_bytes": _contents(
-                api, scope.repository, scope.caller_workflow, caller_commit
+            "caller_workflow_bytes": api.immutable_contents(
+                scope.repository, scope.caller_workflow, caller_commit, max_bytes=16384
             ),
             "actor_permission": api.obj(f"{core}/collaborators/{scope.operator_login}/permission"),
         }
@@ -196,4 +170,34 @@ class ToolRelease:
 
 def acquire_tool_release(*, now: datetime, expected_selection: ProtectedSelection) -> ToolRelease:
     """Authenticate active I/P independently and capture its exact immutable release bytes."""
-    raise NotImplementedError
+    try:
+        scope = bootstrap.red_scope()
+        if type(now) is not datetime or now.utcoffset() is None or now >= scope.expires_at:
+            raise ValueError("native acquisition rejected: invalid or expired clock")
+        api = _github()
+        selection, _, _ = _active_selection(api, scope)
+        if type(expected_selection) is not ProtectedSelection or expected_selection != selection:
+            raise ValueError("native acquisition rejected: active selection differs")
+        captured: dict[str, bytes] = {}
+        for name in (*scope.tool_filenames, scope.manifest_filename, scope.runtime_descriptor_filename):
+            limit = 128 * 1024 if name in scope.tool_filenames else 16384
+            captured[name] = api.immutable_contents(
+                scope.policy_repository, f"{scope.tool_directory}/{name}",
+                selection.policy_commit, max_bytes=limit,
+            )
+        descriptor = captured.pop(scope.runtime_descriptor_filename)
+        if hashlib.sha256(descriptor).hexdigest() != selection.runtime_descriptor_sha256:
+            raise ValueError("native acquisition rejected: runtime descriptor digest differs")
+        bootstrap.verify_tool_bytes(captured, selection.manifest_sha256)
+        if _policy_main(api, scope) != selection.index_commit:
+            raise ValueError("native acquisition rejected: policy main changed")
+        return ToolRelease(
+            selection, descriptor, captured[scope.manifest_filename],
+            captured["requirements.in"], captured["locked.txt"],
+            captured["build-requirements.in"], captured["build-locked.txt"],
+        )
+    except (
+        ValueError, TypeError, KeyError, OSError, http.client.HTTPException,
+        OverflowError, RecursionError,
+    ):
+        raise ValueError("native acquisition rejected: invalid or unavailable release") from None
