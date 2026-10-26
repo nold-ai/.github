@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "platform": "linux-x86_64-gnu",
+  "assets": {
+    "uv": {
+      "repository": "astral-sh/uv",
+      "tag": "0.13.5",
+      "asset_id": 664336023,
+      "name": "uv-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 16682639,
+      "sha256": "f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f",
+      "binary": "uv-x86_64-unknown-linux-gnu/uv",
+      "binary_sha256": "8a70db72685b7138121bfcda71fa1a00cb709ed9f1fdc4ecf1dd871e8e167e52"
+    },
+    "python": {
+      "repository": "astral-sh/python-build-standalone",
+      "tag": "20261021",
+      "asset_id": 663544370,
+      "name": "cpython-3.12.15+20261021-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "size": 34479606,
+      "sha256": "6d7521138fd33afddc1ccd08abb007d9a2829e38117c2576f9efdc0ec73ce772",
+      "binary": "python/bin/python3.12",
+      "binary_sha256": "0a97d28d3635c7dfd143de6d00b09c0cb382249c020b28ee33fb4002db1efb9c"
+    },
+    "gh": {
+      "repository": "cli/cli",
+      "tag": "v2.101.0",
+      "asset_id": 565857134,
+      "name": "gh_2.101.0_linux_amd64.tar.gz",
+      "size": 15282175,
+      "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8",
+      "binary": "gh_2.101.0_linux_amd64/bin/gh",
+      "binary_sha256": "ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff"
+    }
+  }
+}

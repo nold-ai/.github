@@ -1,0 +1,9 @@
+{
+  "files": {
+    "build-locked.txt": "928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7",
+    "build-requirements.in": "d419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df",
+    "locked.txt": "a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341",
+    "requirements.in": "fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f"
+  },
+  "schema_version": 1
+}
