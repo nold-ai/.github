@@ -73,6 +73,40 @@ def expected_inventory(raw):
     return tuple(sorted(pins.items()))
 
 
+def synthetic_install_report(raw):
+    allowed = {}
+    for content in (raw["locked.txt"], raw["build-locked.txt"]):
+        for block in re.split(rb"(?m)(?=^[A-Za-z0-9_.-]+==)", content):
+            pin = re.match(rb"([A-Za-z0-9_.-]+)==([^\s;\\]+)", block)
+            if pin:
+                name = re.sub(r"[-_.]+", "-", pin[1].decode()).lower()
+                key = (name, pin[2].decode())
+                hashes = re.findall(rb"--hash=sha256:([a-f0-9]{64})", block)
+                allowed.setdefault(key, []).extend(value.decode() for value in hashes)
+    alternate = next(key for key in sorted(allowed) if len(set(allowed[key])) > 1
+                     and key[0] not in {"commentjson", "lark-parser"})
+    records = []
+    for (name, version), hashes in sorted(allowed.items()):
+        digest = hashes[1] if (name, version) == alternate else hashes[0]
+        stem = name.replace("-", "_") + "-" + version
+        filename = stem + (".tar.gz" if name in {"commentjson", "lark-parser"} else "-py3-none-any.whl")
+        records.append({
+            "download_info": {"url": "https://files.pythonhosted.org/packages/aa/bb/" + filename,
+                              "archive_info": {"hashes": {"sha256": digest}}},
+            "is_direct": False, "is_yanked": False, "requested": True,
+            "metadata": {"metadata_version": "2.4", "name": name, "version": version,
+                         "summary": "Synthetic external-process contract data"},
+        })
+    assert len(records) == 57
+    return {"version": "1", "pip_version": "26.2.1", "install": records,
+            "environment": {"implementation_name": "cpython", "implementation_version": "3.12.15",
+                            "os_name": "posix", "platform_machine": "x86_64",
+                            "platform_release": "6.8.0-synthetic", "platform_system": "Linux",
+                            "platform_version": "Synthetic contract fixture",
+                            "python_full_version": "3.12.15", "python_version": "3.12",
+                            "platform_python_implementation": "CPython", "sys_platform": "linux"}}, alternate, allowed[alternate][0]
+
+
 @pytest.fixture
 def native(release, monkeypatch, tmp_path):
     materialization = load("native_requirements_materialization", monkeypatch)
@@ -276,6 +310,9 @@ def process_native(native, monkeypatch):
     native.source_links = {"core": set(), "modules": set()}
     native.probe_fault = None
     native.install_fault = None
+    native.report_fault = None
+    native.report, native.alternate_artifact, native.first_artifact_hash = synthetic_install_report(native.release.raw)
+    native.report_paths = []
     native.installed_python = None
     native.venv_python = None
     native.private_roots = set()
@@ -298,9 +335,26 @@ def process_native(native, monkeypatch):
             "sha": commit, "tree": {"sha": tree}, "parents": [],
         }
 
-    def output(args, raw, kwargs):
-        text = kwargs.get("text") or kwargs.get("encoding")
-        return subprocess.CompletedProcess(args, 0, raw.decode() if text else raw, "" if text else b"")
+    def output(args, raw, kwargs, stderr=b""):
+        text = kwargs.get("text") or kwargs.get("universal_newlines") or kwargs.get("encoding") or kwargs.get("errors")
+        encoding = kwargs.get("encoding") or "utf-8"
+        errors = kwargs.get("errors") or "strict"
+
+        def stream_result(stream, data):
+            sink = kwargs.get(stream)
+            if kwargs.get("capture_output") or sink == subprocess.PIPE:
+                return data.decode(encoding, errors) if text else data
+            if sink is not None and sink != subprocess.DEVNULL:
+                if isinstance(sink, int):
+                    os.write(sink, data)
+                else:
+                    sink.write(data.decode(encoding, errors) if isinstance(sink, io.TextIOBase) else data)
+                    sink.flush()
+            return None
+
+        stdout = stream_result("stdout", raw + stderr if kwargs.get("stderr") == subprocess.STDOUT else raw)
+        error = None if kwargs.get("stderr") == subprocess.STDOUT else stream_result("stderr", stderr)
+        return subprocess.CompletedProcess(args, 0, stdout, error)
 
     def execute(args, **kwargs):
         assert isinstance(args, (list, tuple)) and all(isinstance(arg, (str, os.PathLike)) for arg in args)
@@ -381,8 +435,10 @@ def process_native(native, monkeypatch):
                 raw = tar_bytes(entries)
                 if "--output" in args:
                     Path(args[args.index("--output") + 1]).write_bytes(raw)
+                    raw = b""
                 elif any(arg.startswith("--output=") for arg in args):
                     Path(next(arg.split("=", 1)[1] for arg in args if arg.startswith("--output="))).write_bytes(raw)
+                    raw = b""
                 return output(args, raw, kwargs)
             pytest.fail(f"unexpected Git operation {args}")
         cwd = Path(kwargs.get("cwd", native.workspace))
@@ -442,17 +498,93 @@ def process_native(native, monkeypatch):
         assert Path(args[0]) in {native.installed_python, native.venv_python}
         if "pip" in args and "install" in args:
             assert args[1:4] == ["-I", "-m", "pip"]
-            assert all(flag in args for flag in ("--isolated", "--require-hashes", "--no-deps", "--no-build-isolation", "--only-binary=:all:", "--no-binary=commentjson,lark-parser", "--no-cache-dir", "--index-url", "-r"))
+            assert all(flag in args for flag in ("--isolated", "--require-hashes", "--no-deps", "--no-build-isolation", "--only-binary=:all:", "--no-binary=commentjson,lark-parser", "--no-cache-dir", "--index-url", "--force-reinstall", "--report", "-r"))
             assert args[args.index("--index-url") + 1] == "https://pypi.org/simple"
             assert "--upgrade" not in args and "--extra-index-url" not in args
-            lock = Path(args[args.index("-r") + 1])
-            assert lock.is_relative_to(native.workspace) and lock.read_bytes() == native.release.raw["locked.txt"]
-            native.installs.append(("runtime", args, lock.read_bytes()))
+            locks = [Path(args[index + 1]) for index, arg in enumerate(args) if arg == "-r"]
+            assert len(locks) == 2 and locks[0] != locks[1]
+            assert all(lock.is_relative_to(native.workspace) for lock in locks)
+            assert [lock.read_bytes() for lock in locks] == [native.release.raw["locked.txt"], native.release.raw["build-locked.txt"]]
+            native.installs.append(("runtime", args, locks[0].read_bytes()))
+            assert "--dry-run" not in args
+            report_path = Path(args[args.index("--report") + 1])
+            assert report_path.is_relative_to(native.workspace) and report_path.parent.is_dir()
+            assert not report_path.exists(), "report must originate from this mocked final pip invocation"
+            native.report_paths.append(report_path)
             if native.install_fault == "sdist":
                 raise subprocess.CalledProcessError(1, args, stderr=b"unexpected source distribution")
             if native.install_fault == "install":
                 raise subprocess.CalledProcessError(1, args, stderr=b"build failed")
-            return output(args, b"", kwargs)
+            report = json.loads(json.dumps(native.report))
+            record = report["install"][0]
+            fault = native.report_fault
+            if fault == "wrong_hash":
+                record["download_info"]["archive_info"]["hashes"]["sha256"] = "0" * 64
+            elif fault == "uppercase_hash":
+                record["download_info"]["archive_info"]["hashes"]["sha256"] = record["download_info"]["archive_info"]["hashes"]["sha256"].upper()
+            elif fault == "missing_package":
+                report["install"].pop()
+            elif fault == "extra_package":
+                extra = json.loads(json.dumps(record))
+                extra["metadata"]["name"] = "unexpected-package"
+                extra["download_info"]["url"] = "https://files.pythonhosted.org/packages/unexpected_package-1.0-py3-none-any.whl"
+                extra["metadata"]["version"] = "1.0"
+                report["install"].append(extra)
+            elif fault == "duplicate_package":
+                report["install"].append(json.loads(json.dumps(record)))
+            elif fault == "wrong_version":
+                record["metadata"]["version"] = "999.0"
+                record["download_info"]["url"] = "https://files.pythonhosted.org/packages/annotated_doc-999.0-py3-none-any.whl"
+            elif fault in {"wrong_host", "credentials", "port", "fragment", "unexpected_sdist"}:
+                url = record["download_info"]["url"]
+                if fault == "wrong_host":
+                    url = url.replace("files.pythonhosted.org", "foreign.example")
+                elif fault == "credentials":
+                    url = url.replace("https://", "https://user:password@")
+                elif fault == "port":
+                    url = url.replace("files.pythonhosted.org", "files.pythonhosted.org:443")
+                elif fault == "fragment":
+                    url += "#artifact"
+                else:
+                    url = url.removesuffix("-py3-none-any.whl") + ".tar.gz"
+                record["download_info"]["url"] = url
+            elif fault == "direct":
+                record["is_direct"] = True
+            elif fault == "directory":
+                record["download_info"]["dir_info"] = {"editable": False}
+            elif fault == "vcs":
+                record["download_info"]["vcs_info"] = {"vcs": "git", "commit_id": C}
+            elif fault == "extras":
+                record["requested_extras"] = ["unexpected"]
+            elif fault == "report_version":
+                report["version"] = 1
+            elif fault == "pip_version":
+                report["pip_version"] = "26.2.0"
+            elif fault == "boolean_field":
+                record["is_direct"] = 0
+            raw = json.dumps(report).encode()
+            if fault == "malformed":
+                raw = b"{"
+            elif fault == "empty":
+                raw = b""
+            elif fault == "oversize":
+                report["environment"]["synthetic_padding"] = "x" * (4 * 1024 * 1024)
+                raw = json.dumps(report).encode()
+            elif fault == "duplicate_key":
+                raw = raw[:-1] + b',"version":"1"}'
+            elif fault == "nested_duplicate_key":
+                digest = record["download_info"]["archive_info"]["hashes"]["sha256"]
+                raw = raw.replace(('"sha256": "' + digest + '"').encode(),
+                                  ('"sha256": "' + digest + '", "sha256": "' + digest + '"').encode(), 1)
+            if fault == "nonregular":
+                report_path.mkdir()
+            elif fault == "symlink":
+                target = report_path.with_name("external-report.json")
+                target.write_bytes(raw)
+                report_path.symlink_to(target)
+            elif fault != "missing":
+                report_path.write_bytes(raw)
+            return output(args, b"Successfully installed frozen inputs\n", kwargs, b"Synthetic backend build log\n")
         assert "-I" in args and "-c" in args
         executable = Path(args[0])
         prefix = executable.parent.parent
@@ -630,4 +762,43 @@ def test_coherent_core_fixture_lock_must_semantically_bind_modules(process_nativ
     with pytest.raises(ValueError):
         with enter(process_native):
             pytest.fail("unbound fixture-lock yielded NativeTool")
+    assert_clean(process_native)
+
+
+def test_final_install_receipt_preserves_reported_alternate_hash(process_native):
+    fixture = process_native
+    name, version = fixture.alternate_artifact
+    reported = next(record["download_info"]["archive_info"]["hashes"]["sha256"]
+                    for record in fixture.report["install"] if record["metadata"]["name"] == name)
+    assert reported != fixture.first_artifact_hash
+    with enter(fixture) as tool:
+        assert len(fixture.report_paths) == 1
+        report_path = fixture.report_paths[0]
+        raw = report_path.read_bytes()
+        diagnostics = dict(tool.diagnostic_identity)
+        assert diagnostics["install_report_path"] == str(report_path)
+        assert diagnostics["install_report_sha256"] == hashlib.sha256(raw).hexdigest()
+        artifacts = {key: value for key, value in diagnostics.items() if key.startswith("artifact.")}
+        assert artifacts == {"artifact." + record["metadata"]["name"]:
+                             record["metadata"]["version"] + ":" + record["download_info"]["archive_info"]["hashes"]["sha256"]
+                             for record in fixture.report["install"]}
+        assert artifacts["artifact." + name] == version + ":" + reported
+        assert len(fixture.installs) == 2
+    assert not report_path.exists()
+    assert_clean(fixture)
+
+
+@pytest.mark.parametrize("fault", [
+    "missing", "empty", "malformed", "oversize", "nonregular", "symlink",
+    "duplicate_key", "nested_duplicate_key", "wrong_hash", "uppercase_hash",
+    "missing_package", "extra_package", "duplicate_package", "wrong_version",
+    "wrong_host", "credentials", "port", "fragment", "unexpected_sdist",
+    "direct", "directory", "vcs", "extras", "report_version", "pip_version", "boolean_field",
+])
+def test_final_install_receipt_refuses_incomplete_or_foreign_evidence(process_native, fault):
+    process_native.report_fault = fault
+    with pytest.raises(ValueError):
+        with enter(process_native):
+            pytest.fail("invalid final pip artifact receipt yielded NativeTool")
+    assert len(process_native.report_paths) == 1
     assert_clean(process_native)
