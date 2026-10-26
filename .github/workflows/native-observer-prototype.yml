@@ -1,0 +1,130 @@
+name: Native observer availability prototype
+on:
+  push:
+    branches: [codex/dev786-native-observer-probe]
+    paths: [.github/workflows/native-observer-prototype.yml]
+permissions:
+  contents: read
+jobs:
+  observe:
+    if: github.repository == 'nold-ai/.github' && github.event.deleted != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PROBE_CANDIDATE_SHA: ${{ github.sha }}
+    steps:
+      - name: Observe installed tracer on sanitized own children
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S - <<'PY_PROBE'
+          import base64, hashlib, json, os, platform, re, resource, shutil, signal, stat, subprocess, sys, tempfile
+          from pathlib import Path
+          assert platform.system() == "Linux" and platform.machine() == "x86_64"
+          release = Path("/etc/os-release").read_text()
+          assert 'ID=ubuntu' in release and 'VERSION_ID="24.04"' in release
+          candidate = os.environ["PROBE_CANDIDATE_SHA"]
+          assert re.fullmatch(r"[a-f0-9]{40}", candidate)
+          tracer = Path("/usr/bin/strace")
+          if not tracer.is_file() or tracer.is_symlink() or not os.access(tracer, os.X_OK):
+              raise SystemExit("SETUP_FAILURE: existing /usr/bin/strace unavailable")
+          root = None
+          meta = {"kind": "DEVELOPMENT_AVAILABILITY_PROTOTYPE", "candidate_sha": candidate, "python": sys.version, "python_executable": str(Path(sys.executable).resolve()), "os_release": release, "machine": platform.machine(), "kernel": platform.release(), "stage_timeout_seconds": 30}
+          failed = True
+          try:
+              root = Path(tempfile.mkdtemp(prefix="dev786-observer-", dir=os.environ["RUNNER_TEMP"]))
+              root.chmod(0o700)
+              (root / "home").mkdir(mode=0o700)
+              (root / "tmp").mkdir(mode=0o700)
+              (root / "work").mkdir(mode=0o700)
+              (root / "work" / "known.txt").write_text("benign-observer-probe\n")
+              clean = {"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "TMPDIR": str(root / "tmp"), "LC_ALL": "C.UTF-8"}
+              for key, cap in ((resource.RLIMIT_FSIZE, 1048576), (resource.RLIMIT_AS, 1073741824), (resource.RLIMIT_CPU, 45), (resource.RLIMIT_NPROC, 128), (resource.RLIMIT_CORE, 0)):
+                  _, hard = resource.getrlimit(key)
+                  maximum = cap if hard == resource.RLIM_INFINITY else min(cap, hard)
+                  resource.setrlimit(key, (maximum, maximum))
+              meta.update({"strace": str(tracer), "strace_sha256": hashlib.sha256(tracer.read_bytes()).hexdigest(), "environment_keys": sorted(clean)})
+              for option, name in (("--version", "version"), ("--help", "help")):
+                  with (root / (name + ".stdout")).open("xb") as out, (root / (name + ".stderr")).open("xb") as err:
+                      result = subprocess.run([str(tracer), option], stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=clean, cwd=root, timeout=5, close_fds=True, check=False)
+                  if result.returncode != 0:
+                      raise RuntimeError("observer metadata command failed")
+              grandchild = 'import json,os,sys; print(json.dumps({"role":"grandchild","pid":os.getpid(),"cwd":os.getcwd(),"env":dict(os.environ)})); sys.exit(7)'
+              child = 'import json,os,subprocess,sys; from pathlib import Path; os.chdir(sys.argv[1]); fd=os.open("work",os.O_RDONLY|os.O_DIRECTORY); os.fchdir(fd); os.close(fd); assert Path("known.txt").read_text()=="benign-observer-probe\\n"; result=subprocess.run([sys.executable,"-I","-S","-c",sys.argv[2]],env=dict(os.environ),stdin=subprocess.DEVNULL,close_fds=True,check=False); print(json.dumps({"role":"child","pid":os.getpid(),"cwd":os.getcwd(),"grandchild_status":result.returncode,"env":dict(os.environ)})); sys.exit(3 if result.returncode==7 else 99)'
+              args = [str(tracer), "-ff", "-v", "-s", "131072", "-yy", "-e", "trace=%process,%file,fchdir", "-o", str(root / "trace"), "/usr/bin/python3", "-I", "-S", "-c", child, str(root), grandchild]
+              meta["argv"] = args
+              with (root / "stage.stdout").open("xb") as out, (root / "stage.stderr").open("xb") as err:
+                  process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=clean, cwd=root, close_fds=True, start_new_session=True)
+                  try:
+                      meta["stage_exit"] = process.wait(timeout=30)
+                  finally:
+                      try:
+                          os.killpg(process.pid, signal.SIGKILL)
+                      except ProcessLookupError:
+                          pass
+                      process.wait(timeout=5)
+              if meta["stage_exit"] != 3:
+                  raise RuntimeError("unexpected traced-stage exit")
+              trace = list(root.glob("trace.*"))
+              if not 1 <= len(trace) <= 16 or any(not re.fullmatch(r"trace\.[1-9][0-9]*", p.name) for p in trace):
+                  raise RuntimeError("trace count or filename")
+              meta["trace_files"] = [p.name for p in sorted(trace)]
+              failed = False
+          except Exception as error:
+              failed = True
+              meta["failure_type"] = type(error).__name__
+          finally:
+              payloads = []
+              omissions = []
+              total = 0
+              try:
+                  names = sorted(p for p in root.iterdir() if p.name not in {"home", "tmp", "work"}) if root is not None else []
+                  for path in names:
+                      try:
+                          info = path.lstat()
+                          if not stat.S_ISREG(info.st_mode) or not re.fullmatch(r"[A-Za-z0-9_.-]+", path.name):
+                              failed = True
+                              omissions.append({"name": path.name, "reason": "unexpected-file-kind-or-name"})
+                              continue
+                          remaining = 2097152 - total
+                          if remaining <= 0:
+                              failed = True
+                              omissions.append({"name": path.name, "reason": "aggregate-cap", "original_bytes": info.st_size})
+                              continue
+                          bound = min(1048576, remaining)
+                          with path.open("rb") as stream:
+                              raw = stream.read(bound)
+                          after = path.stat()
+                          complete = len(raw) == info.st_size == after.st_size and info.st_mtime_ns == after.st_mtime_ns
+                          cap_hit = info.st_size >= 1048576 or info.st_size > remaining
+                          if not complete or cap_hit:
+                              failed = True
+                          total += len(raw)
+                          payloads.append((path.name, raw, {"name": path.name, "bytes": len(raw), "original_bytes": info.st_size, "complete": complete, "cap_hit": cap_hit, "sha256": hashlib.sha256(raw).hexdigest()}))
+                      except Exception as error:
+                          failed = True
+                          omissions.append({"name": path.name, "reason": "export-read-failure", "failure_type": type(error).__name__})
+              except Exception as error:
+                  failed = True
+                  meta["export_failure_type"] = type(error).__name__
+              finally:
+                  if root is not None:
+                      try:
+                          shutil.rmtree(root)
+                      except Exception as error:
+                          failed = True
+                          meta["cleanup_failure_type"] = type(error).__name__
+              meta["files"] = [item for _, _, item in payloads]
+              meta["omissions"] = omissions
+              meta["outcome"] = "SETUP_FAILURE" if failed else "OBSERVED"
+              print("PROBE_MANIFEST " + json.dumps(meta, sort_keys=True))
+              for name, raw, _ in payloads:
+                  print("PROBE_FILE_BEGIN " + name)
+                  encoded = base64.b64encode(raw).decode("ascii")
+                  for offset in range(0, len(encoded), 76):
+                      print(encoded[offset:offset + 76])
+                  print("PROBE_FILE_END " + name)
+          if failed:
+              raise SystemExit(1)
+
+          PY_PROBE
