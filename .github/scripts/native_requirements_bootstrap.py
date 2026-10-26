@@ -374,3 +374,11 @@ def verify_tool_files(
             os.close(directory_fd)
     except (OSError, UnicodeError, RuntimeError) as error:
         raise ValueError("tool files rejected: filesystem access failed") from error
+
+
+
+def verify_tool_bytes(
+    files: Mapping[str, bytes], expected_manifest_sha256: str
+) -> tuple[tuple[str, str], ...]:
+    """Verify exact bounded captured manifest/input bytes without filesystem authority."""
+    raise NotImplementedError("captured tool byte verification is not implemented")

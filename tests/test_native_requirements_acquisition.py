@@ -179,6 +179,9 @@ def test_scope_view_is_the_same_frozen_compiled_owner(modules):
         "run_attempt": 1, "scope_id": "security-dependencies-0-55-11-dev", "release_index": INDEX_PATH,
         "tool_manifest_sha256": MANIFEST, "tool_filenames": ("build-locked.txt", "build-requirements.in", "locked.txt", "requirements.in"),
         "manifest_filename": "tool-files.json", "max_manifest_bytes": 16384, "max_input_bytes": 4194304,
+        "tool_directory": ".github/native-tools/dev786", "runtime_descriptor_filename": "runtime.json",
+        "proof_base_tree": "24112d8c9983333f9059283965230348f718b74c",
+        "module_repository": "nold-ai/specfact-cli-modules", "module_repository_id": 1162937710,
     }
     with pytest.raises(FrozenInstanceError):
         scope.policy_branch = "dev"

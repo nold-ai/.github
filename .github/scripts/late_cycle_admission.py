@@ -558,6 +558,16 @@ class GitHub:
         require(len(raw) <= MAX_FILE, "contents-size")
         return raw
 
+    def immutable_contents(
+        self, repository: str, path: str, revision: str, *, max_bytes: int
+    ) -> bytes:
+        """Read a bounded canonical Git blob at one immutable revision."""
+        raise NotImplementedError
+
+    def release_asset(self, repository: str, asset_id: int, *, max_bytes: int) -> bytes:
+        """Read one official release asset with a bounded credential-stripping transport."""
+        raise NotImplementedError
+
     def comments(self, pull_request: int) -> list[dict[str, Any]]:
         result = []
         for page in range(1, 11):

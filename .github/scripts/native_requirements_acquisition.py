@@ -181,3 +181,19 @@ def acquire_red_context(*, runtime: Mapping[str, str], now: datetime) -> Acquire
         OverflowError, RecursionError,
     ):
         raise ValueError("native acquisition rejected: invalid or unavailable context") from None
+
+
+@dataclass(frozen=True, slots=True)
+class ToolRelease:
+    selection: ProtectedSelection
+    runtime_descriptor: bytes
+    manifest: bytes
+    requirements: bytes
+    locked: bytes
+    build_requirements: bytes
+    build_locked: bytes
+
+
+def acquire_tool_release(*, now: datetime, expected_selection: ProtectedSelection) -> ToolRelease:
+    """Authenticate active I/P independently and capture its exact immutable release bytes."""
+    raise NotImplementedError
