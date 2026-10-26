@@ -320,6 +320,7 @@ def process_native(native, monkeypatch):
     native.probes = []
     native.installs = []
     native.mirror_files = []
+    native.uv_policy_snapshots = []
     native.repositories = {}
     native.source_archives = {}
     for repository, identity, commit, tree in (
@@ -444,8 +445,18 @@ def process_native(native, monkeypatch):
         cwd = Path(kwargs.get("cwd", native.workspace))
         assert cwd.is_relative_to(native.workspace)
         if Path(args[0]).name == "uv":
+            native.uv_policy_snapshots.append((tuple(args), env.get("UV_PYTHON_DOWNLOADS")))
             assert "--no-config" in args
             if "python" in args and "install" in args:
+                if env.get("UV_PYTHON_DOWNLOADS") == "never" and native.installed_python is None:
+                    message = b'Python downloads are not allowed (`python-downloads = "never"`). Change to `python-downloads = "manual"` to allow explicit installs.\n'
+                    result = output(args, b"", kwargs, message)
+                    result.returncode = 1
+                    if kwargs.get("check"):
+                        raise subprocess.CalledProcessError(1, args, output=result.stdout, stderr=result.stderr)
+                    return result
+                assert env.get("UV_PYTHON_DOWNLOADS") == "manual"
+                assert "--no-python-downloads" not in args
                 assert "--offline" in args and "--no-bin" in args and "--no-compile-bytecode" in args
                 assert "cpython-3.12.15-linux-x86_64-gnu" in args
                 install = Path(args[args.index("--install-dir") + 1])
@@ -802,3 +813,24 @@ def test_final_install_receipt_refuses_incomplete_or_foreign_evidence(process_na
             pytest.fail("invalid final pip artifact receipt yielded NativeTool")
     assert len(process_native.report_paths) == 1
     assert_clean(process_native)
+
+
+def test_explicit_offline_managed_install_alone_uses_manual_download_policy(process_native):
+    fixture = process_native
+    with enter(fixture) as tool:
+        assert tool.python.exists()
+        snapshots = tuple(fixture.uv_policy_snapshots)
+        installs = [(args, policy) for args, policy in snapshots if "python" in args and "install" in args]
+        assert len(installs) == 1
+        args, policy = installs[0]
+        assert policy == "manual"
+        assert "--offline" in args and "--no-config" in args
+        assert args[args.index("--mirror") + 1].startswith("file://")
+        assert args[-1] == "cpython-3.12.15-linux-x86_64-gnu"
+        assert sum(policy == "manual" for _, policy in snapshots) == 1
+        others = [(args, policy) for args, policy in snapshots if not ("python" in args and "install" in args)]
+        assert others and all(policy == "never" for _, policy in others)
+        assert any("venv" in args for args, _ in others)
+        assert any("pip" in args and "install" in args for args, _ in others)
+        assert len(fixture.mirror_files) == 1
+    assert_clean(fixture)
