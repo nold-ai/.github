@@ -53,7 +53,7 @@ _SCOPE = RedScope()
 
 def red_scope() -> RedScope:
     """Return the sole compiled, immutable RED acquisition scope."""
-    raise NotImplementedError
+    return _SCOPE
 
 
 @dataclass(frozen=True, slots=True)
