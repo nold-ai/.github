@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
-class _Scope:
+class RedScope:
     repository: str = "nold-ai/specfact-cli"
     repository_id: int = 1085706003
     policy_repository: str = "nold-ai/.github"
@@ -32,6 +32,9 @@ class _Scope:
     operator_login: str = "djm81"
     operator_id: int = 39115308
     policy_branch: str = "main"
+    scope_id: str = "security-dependencies-0-55-11-dev"
+    release_index: str = ".github/native-releases/dev786.json"
+    tool_manifest_sha256: str = "969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad"
     caller_branch: str = "codex/security-dev-native-red"
     caller_workflow: str = ".github/workflows/specfact.yml"
     reusable_workflow: str = ".github/workflows/native-requirements-bootstrap.yml"
@@ -45,7 +48,12 @@ class _Scope:
     max_input_bytes: int = 4194304
 
 
-_SCOPE = _Scope()
+_SCOPE = RedScope()
+
+
+def red_scope() -> RedScope:
+    """Return the sole compiled, immutable RED acquisition scope."""
+    raise NotImplementedError
 
 
 @dataclass(frozen=True, slots=True)

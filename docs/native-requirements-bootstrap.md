@@ -6,7 +6,7 @@ Recorded on 2026-10-26 Europe/Berlin. The selected design separates the proof to
 
 ## Identities and fixed scope
 
-The private frozen `Scope` owns the following values. Inputs cannot replace them.
+The frozen `RedScope` in the existing bootstrap owner owns the following values. Inputs cannot replace them.
 
 | Role | Fixed value |
 | --- | --- |
@@ -93,6 +93,43 @@ The directory itself must be an existing directory rather than a symlink. Its ex
 `expected_manifest_sha256` is an independently supplied lowercase hexadecimal SHA256 digest. The verifier hashes the raw manifest bytes and compares them before JSON interpretation. A digest mismatch reports `tool files rejected: manifest digest mismatch`, including when the unauthenticated bytes are invalid JSON. The UTF-8 JSON object has exactly `schema_version` and `files`. `schema_version` is integer 1 and rejects a boolean. `files` has exactly the four input filenames and one lowercase hexadecimal SHA256 digest per file. Duplicate keys at either object level, malformed JSON or UTF-8, unknown keys, wrong types, missing or extra names, absolute paths, and path traversal refuse. Every file must match its recorded digest. Alternate manifest whitespace is permitted only when its exact raw digest was independently supplied.
 
 The eventual expected manifest digest must come from authenticated protected P. It must never come from candidate content or the manifest itself. This unit neither parses lock requirements nor installs packages. Success binds bytes observed during verification; it does not make directory paths immutable. Future materialization must consume authenticated bytes without a check-to-use substitution and must not treat this receipt as permanent path authority.
+
+## Second-unit protected acquisition contract
+
+Recorded on 2026-10-26 Europe/Berlin. This additive unit selects protected policy independently of caller E and acquires the fresh snapshot consumed by the unchanged first-unit boundary. The first-unit history above remains evidence for its pure predicates. Its earlier moving `compare/P...main` acquisition assumption is superseded here by an immutable comparison against index commit I. No workflow, canonical caller permissions, tool files, dependency closure, native algorithm, signer, or consumer changes belong to this unit.
+
+```python
+red_scope() -> RedScope
+acquire_red_context(*, runtime: Mapping[str, str], now: datetime) -> AcquiredRed
+```
+
+The existing bootstrap module exposes its sole compiled frozen scope through the no-argument `red_scope` accessor. `RedScope` preserves every former `_Scope` value and adds only `scope_id=security-dependencies-0-55-11-dev`, `release_index=.github/native-releases/dev786.json`, and `tool_manifest_sha256=969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad`. Acquisition obtains its scope through that public accessor. It must not import the private instance, copy a second production registry, or accept caller-selected scope. Public frozen constructors represent data; they are not unforgeable capabilities.
+
+The new acquisition module owns frozen `ProtectedSelection(index_commit, policy_commit, manifest_sha256, runtime_descriptor_sha256, expires_at)` and `AcquiredRed(selection, context)`. `expires_at` is an aware `datetime`; `context` is the existing frozen `AuthorizedRedContext`. The only operation accepts the actual closed runtime mapping and actual aware clock. There are no public policy, digest, repository, ref, URL, credential, transport, or scope arguments. A private `_github()` factory is a patchable test seam and constructs the existing `late_cycle_admission.GitHub` transport in production. Acquisition reuses that transport's bounded GET/object facilities and `json_object` parser, without inheriting old admission policy or implementing another HTTP layer. `native_requirements_bootstrap` remains the module owner of scope and full context validation.
+
+### Independent protected selection
+
+Resolve the fixed policy repository identity and `refs/heads/main` to I. Both the initial and terminal ref responses require `ref=refs/heads/main`, `object.type=commit`, and a forty-character lowercase hexadecimal `object.sha`. Repository numeric IDs, organization identity, and `default_branch=main` retain the strict types of the existing boundary. The fixed index is read at I, never at a mutable branch. I is a future protected-main commit after immutable P; fixture contracts require no actual deployed index file.
+
+The raw index is a bounded UTF-8 JSON object with exactly six fields. Duplicate keys, unknown or missing fields, malformed JSON, and nonobjects refuse. `schema_version` is exact integer 1, excluding booleans, floats, and strings. `scope_id` and `tool_manifest_sha256` equal the compiled scope values above. `policy_commit` is forty lowercase hexadecimal characters and differs from I. `runtime_descriptor_sha256` is sixty-four lowercase hexadecimal characters independently selected by the protected index. It is returned as selection metadata only; no runtime descriptor, interpreter, distribution, or source is fetched or accepted here. `expires_at` is exactly `2026-11-04T23:00:00Z`. Actual aware `now` must precede that exclusive instant.
+
+Fetch only `compare/P...I` in the fixed policy repository. The returned `url` must be the exact `https://api.github.com/repos/nold-ai/.github/compare/P...I`; `base_commit.sha=P`, `merge_base_commit.sha=P`, and `status=ahead` are required. GitHub's actual comparison response has no required `head_commit` field. The immutable request and returned URL bind I. If present, `ahead_by` is an exact positive integer and `behind_by` is exact integer zero. Booleans and equal-valued floats refuse. A comparison against mutable main, identical/diverged/behind status, or a coordinated different base refuses even when caller bytes declare that different P.
+
+### Fresh acquisition and immutable contents
+
+Acquire the fixed core repository, PR 786, Git commit R, dev and main ref records, current in-progress caller run, caller workflow contents at E, fixed operator permission, policy repository, and pinned comparison. The endpoints are fixed repository GET paths; only already validated run ID and E enter dynamic paths. Before interpolation, `runtime.run_id` must be a canonical positive ASCII decimal string without leading zeros and less than `2**63`; `runtime.sha` must be forty lowercase hexadecimal characters. All other runtime fields retain the existing exact closed mapping. No OIDC `job_workflow` properties or obligatory `referenced_workflows` field are introduced. Ordinary future fields on raw API objects remain permitted where the first boundary permits them.
+
+Both the index at I and caller workflow at E use GitHub file-content responses with `type=file`, `encoding=base64`, exact requested `path`, exact basename `name`, exact integer decoded `size`, and lowercase forty-hex blob `sha`. Required fields may not be omitted. Decode normal GitHub LF-wrapped base64 as well as unwrapped canonical base64. Reject malformed or noncanonical base64 rather than silently discarding arbitrary characters or accepting nonzero padding bits. Recompute `SHA1(b"blob " + ASCII_decimal_byte_count + b"\0" + decoded_bytes)` and compare with the response SHA. Declared SHA alone is insufficient. Each decoded file is bounded to 16,384 bytes, no larger than the existing shared `MAX_FILE`; bound encoded input before decode and decoded bytes afterward. Oversized input must never reach base64 decoding with an arbitrarily large allocation. Ordinary raw API response parsing retains the existing transport/parser bound.
+
+The snapshot uses these authenticated decoded caller bytes, the original runtime mapping and acquired API objects. Call the existing `authorize_red_context` with independently selected P and actual clock for complete fixed identity, type, canonical caller, PR state and run consistency checks. Caller bytes at a mutable branch, alternate permissions or serialization, changed run/attempt/actor, revoked operator permission, and caller-coordinated replacement P refuse. Finally reacquire policy main and require the exact initial I. Movement or revocation during acquisition refuses the whole operation; no partial selection or context escapes.
+
+API refusals, transport errors, `OSError`, timeouts, malformed raw responses, invalid clocks, and all contract violations surface as `ValueError`. The operation performs no filesystem writes, subprocesses, installs, native execution, signing, or network mutations. The existing `GH_TOKEN`/`GITHUB_TOKEN` routing stays on fixed `api.github.com`, including public-policy reads. Acquisition requests do not follow foreign contents redirects. No new credential or credential omission requirement is added.
+
+### Test-first boundary and limits
+
+The new focused contracts independently encode synthetic I/P/E and actual GitHub object shapes. They cover exact frozen results and shared immutable scope; independent selection and coordinated substitution; pinned comparisons; initial and terminal refs; moved/revoked, expired and malformed selection; immutable blob metadata and bytes; path validation before interpolation; existing pure-boundary refusal; and shared transport host/token behavior without network. The original 447-case test file remains byte-identical. These new tests exercise accessor and operation scaffolds directly, with the scope accessor stubbed for acquisition tests. Expected initial failure is `NotImplementedError`, including negative contracts that will eventually require `ValueError`; collection or import errors are not accepted failing-before evidence.
+
+This document and the new public operation/accessor contain only the second-unit contract and `NotImplementedError` scaffold at this checkpoint. No execution count or passing result is claimed. Root must read the full files, stop the contract owner, record genuine scaffold failures, obtain independent contract acceptance, and make the ordinary test-first commit before a fresh owner implements runtime. No runtime authority, protected deployment, native RED, signer identity, source adoption, or merge readiness is established. All external gates below remain mandatory. Rollback before adoption is abandonment of this unmerged additive unit. Next action is the root-owned failing-before and independent acceptance gate.
 
 ## Remaining acceptance gates
 
