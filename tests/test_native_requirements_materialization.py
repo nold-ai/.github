@@ -308,6 +308,8 @@ def process_native(native, monkeypatch):
     }
     native.source_fault = None
     native.source_links = {"core": set(), "modules": set()}
+    native.source_executables = {"core": set(), "modules": set()}
+    native.git_archive_snapshots = []
     native.probe_fault = None
     native.install_fault = None
     native.report_fault = None
@@ -414,7 +416,8 @@ def process_native(native, monkeypatch):
             if "ls-tree" in args:
                 records = []
                 for name, raw in sorted(sources.items()):
-                    mode = "120000" if name in native.source_links[role] else "100644"
+                    mode = ("120000" if name in native.source_links[role] else
+                            "100755" if name in native.source_executables[role] else "100644")
                     if native.source_fault == "mode":
                         mode = "100755"
                     records.append(f"{mode} blob {git_blob(raw)}\t{name}\0".encode())
@@ -433,7 +436,27 @@ def process_native(native, monkeypatch):
                 if native.source_fault == "bytes":
                     name, raw, kind = entries[-1]
                     entries[-1] = (name, raw + b"changed", kind)
-                raw = tar_bytes(entries)
+                mask = 0o0002
+                for index, arg in enumerate(args[:args.index("archive")]):
+                    if arg == "-c" and args[index + 1].startswith("tar.umask="):
+                        mask = int(args[index + 1].split("=", 1)[1], 8)
+                stream = io.BytesIO()
+                modes = []
+                with tarfile.open(fileobj=stream, mode="w") as archive:
+                    for name, data, kind in entries:
+                        member = tarfile.TarInfo(name)
+                        member.mode = (0o777 if name in native.source_executables[role] else 0o666) & ~mask
+                        if kind == "symlink":
+                            member.type = tarfile.SYMTYPE
+                            member.linkname = data.decode()
+                            member.mode = 0o777
+                            archive.addfile(member)
+                        else:
+                            member.size = len(data)
+                            archive.addfile(member, io.BytesIO(data))
+                        modes.append((name, member.mode))
+                native.git_archive_snapshots.append((tuple(args), role, mask, tuple(modes)))
+                raw = stream.getvalue()
                 if "--output" in args:
                     Path(args[args.index("--output") + 1]).write_bytes(raw)
                     raw = b""
@@ -833,4 +856,30 @@ def test_explicit_offline_managed_install_alone_uses_manual_download_policy(proc
         assert any("venv" in args for args, _ in others)
         assert any("pip" in args and "install" in args for args, _ in others)
         assert len(fixture.mirror_files) == 1
+    assert_clean(fixture)
+
+
+def test_git_source_archive_pins_mask_and_preserves_exact_regular_modes(process_native):
+    fixture = process_native
+    executable = "scripts/source-tool"
+    for role in ("core", "modules"):
+        fixture.sources[role][executable] = b"#!/bin/sh\nexit 0\n"
+        fixture.source_executables[role].add(executable)
+    with enter(fixture) as tool:
+        snapshots = tuple(fixture.git_archive_snapshots)
+        assert len(snapshots) == 2
+        assert {role for _, role, _, _ in snapshots} == {"core", "modules"}
+        for args, role, mask, modes in snapshots:
+            assert any(arg == "-c" and args[index + 1] == "tar.umask=0022"
+                       for index, arg in enumerate(args[:args.index("archive")]))
+            assert mask == 0o0022
+            expected = {name: 0o755 if name in fixture.source_executables[role] else 0o644
+                        for name in fixture.sources[role]}
+            assert dict(modes) == expected
+            assert set(expected.values()) == {0o644, 0o755}
+            source_root = tool.core_root if role == "core" else tool.modules_root
+            for name, data in fixture.sources[role].items():
+                path = source_root / name
+                assert path.read_bytes() == data
+                assert path.stat().st_mode & 0o777 == expected[name]
     assert_clean(fixture)
