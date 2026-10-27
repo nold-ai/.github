@@ -1355,6 +1355,7 @@ class _AttemptAccount:
     stream_bytes: int = 0
     retained_stream_bytes: int = 0
     last_direct: _DirectResult | None = None
+    preparation: _OriginalRPreparation | None = None
 
 
 @dataclass(frozen=True)
@@ -1520,6 +1521,58 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
             if admitted:
                 account.spent_bytes += admitted
         raise _OwnedReadError('Owned read refused') from None
+
+
+@dataclass
+class _OriginalRChild:
+    path: Path
+    created: bool = False
+    descriptor: int | None = None
+    device: int | None = None
+    inode: int | None = None
+    uid: int | None = None
+    mode: int | None = None
+
+
+@dataclass
+class _OriginalRPreparation:
+    started_ns: int
+    deadline_ns: int
+    root: _OriginalRChild | None = None
+    home: _OriginalRChild | None = None
+    tmp: _OriginalRChild | None = None
+    template: _OriginalRChild | None = None
+    repository_metadata: bytes | None = None
+    parent_metadata: bytes | None = None
+    commit_metadata: bytes | None = None
+    complete: bool = False
+
+
+@dataclass(frozen=True)
+class _PreparedOriginalR:
+    root: Path
+    out: Path
+    home: Path
+    tmp: Path
+    commit: str
+    parent: str
+    tree: str
+    parent_tree: str
+    raw_commit_sha256: str
+    sources: tuple[tuple[str, str], ...]
+
+
+class _OriginalRPreparationError(RuntimeError):
+    pass
+
+
+class _OriginalRNotImplemented(RuntimeError):
+    pass
+
+
+def _prepare_original_r(account, api):
+    raise _OriginalRNotImplemented('NEW original R preparation is not implemented')
+
 
 
 if __name__ == '__main__':
