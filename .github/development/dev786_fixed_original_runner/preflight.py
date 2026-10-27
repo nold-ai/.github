@@ -1271,6 +1271,61 @@ def main():
     return 0 if success and export_complete else 1
 
 
+class _OriginalStage(Enum):
+    PLANNER = 'planner'
+    EXECUTOR = 'executor'
+    RECONCILER = 'reconciler'
+    BINDER = 'binder'
+
+
+@dataclass(frozen=True)
+class _PreparedPaths:
+    root: Path
+    out: Path
+    home: Path
+    tmp: Path
+
+
+@dataclass(frozen=True)
+class _OriginalVector:
+    stage: _OriginalStage
+    argv: tuple[bytes, ...]
+    environment: tuple[tuple[bytes, bytes], ...]
+    cwd: bytes
+    expected_exit: int
+    seconds: int
+
+
+@dataclass(frozen=True)
+class _DirectResult:
+    stage: _OriginalStage
+    vector: _OriginalVector
+    pid: int | None
+    started: float
+    deadline: float
+    ended: float
+    waitid: tuple[int, int, int] | None
+    wait_status: int | None
+    stdout: bytes
+    stderr: bytes
+    cleanup_complete: bool
+    deadline_seen: bool
+    reason: str
+
+
+class _OriginalStageError(RuntimeError):
+    pass
+
+
+def _original_vectors(tool, prepared: _PreparedPaths) -> tuple[_OriginalVector, ...]:
+    raise NotImplementedError('NEW original vectors missing')
+
+
+def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
+                        stage: _OriginalStage) -> _DirectResult:
+    raise NotImplementedError('NEW original row lifetime missing')
+
+
 class _SourceRole(Enum):
     PLAN = 'plan.json'
 
@@ -1296,6 +1351,10 @@ class _AttemptAccount:
     retained_members: int = 0
     metadata_visits: int = 0
     stopped: bool = False
+    row_seconds: float = 0.0
+    stream_bytes: int = 0
+    retained_stream_bytes: int = 0
+    last_direct: _DirectResult | None = None
 
 
 @dataclass(frozen=True)

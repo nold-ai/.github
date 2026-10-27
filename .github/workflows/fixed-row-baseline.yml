@@ -1,0 +1,32 @@
+name: Fixed original row missing-behavior baseline
+'on':
+  push:
+    branches: [codex/dev786-fixed-row-baseline-01]
+permissions:
+  contents: read
+jobs:
+  baseline:
+    if: github.repository == 'nold-ai/.github' && github.event.created == true && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact test candidate
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Record the two reviewed missing-body cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          /usr/bin/python3 -I -S .github/development/dev786_fixed_original_runner/run_row_baseline.py
+      - name: Retain bounded source and results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dev786-fixed-row-baseline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev786-fixed-row-baseline-01/export/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
