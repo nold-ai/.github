@@ -7,13 +7,18 @@ import dis
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import platform
 import re
+import resource
+import select
 import signal
 import stat
+import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -1314,16 +1319,614 @@ class _DirectResult:
 
 
 class _OriginalStageError(RuntimeError):
+    def __init__(self, result: _DirectResult):
+        super().__init__('Original row refused')
+        self.result = result
+
+
+class _OriginalRowRefusal(RuntimeError):
     pass
 
 
 def _original_vectors(tool, prepared: _PreparedPaths) -> tuple[_OriginalVector, ...]:
-    raise NotImplementedError('NEW original vectors missing')
+    paths = (tool.python, tool.site_packages, tool.core_root, tool.modules_root, tool.uv,
+             prepared.root, prepared.out, prepared.home, prepared.tmp)
+    for path in paths:
+        if (type(path) is not type(Path()) or not path.is_absolute() or path.anchor != '/'
+                or any(part in ('.', '..') for part in path.parts)
+                or os.path.normpath(str(path)) != str(path)):
+            raise ValueError('original-vector-path')
+        raw = os.fsencode(path)
+        if len(raw) > 4096 or b'\0' in raw:
+            raise ValueError('original-vector-path')
+    py, site, core, modules, uv, root, out, home, tmp = map(os.fsencode, paths)
+    environment = ((b'HOME', home), (b'TMPDIR', tmp),
+                   (b'PATH', os.fsencode(tool.uv.parent) + b':/usr/bin:/bin'),
+                   (b'LC_ALL', b'C.UTF-8'),
+                   (b'VIRTUAL_ENV', os.fsencode(tool.python.parent.parent)),
+                   (b'SPECFACT_MODULES_REPO', modules),
+                   (b'SPECFACT_MODULES_ROOTS', modules + b'/packages'))
+    common = (py, b'-I', b'-S', b'-c')
+    cli = common + (
+        b'import sys; site_packages, trusted_core = sys.argv[1:3]; del sys.argv[1:3]; sys.path.append(site_packages); sys.path.insert(0, trusted_core); from specfact_cli.cli import cli_main; cli_main()',
+        site, core + b'/src')
+    script = common + (
+        b'import runpy, sys; sys.path.append(sys.argv.pop(1)); script = sys.argv.pop(1); runpy.run_path(script, run_name="__main__")',
+        site)
+    base = b'9b5ad1e78430cc0b061cb16de42f73de96f4f312'
+    source = b'4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+    change = b'openspec/changes/security-dependencies-0-55-11-dev'
+    vectors = (
+        cli + (b'requirements', b'evidence', b'--repo-root', root, b'--base-ref', base,
+               b'--required-maturity', b'test-authored', b'--review-evidence',
+               root + b'/' + change + b'/requirements-proof/review-evidence.json',
+               b'--plan-output', out + b'/plan.json', b'--output', out + b'/planning-report.json',
+               b'--summary', out + b'/planning-summary.md'),
+        script + (core + b'/scripts/requirements_proof_executor.py', b'--plan', out + b'/plan.json',
+                  b'--repo-root', root, b'--junit', out + b'/requirements-proof.xml'),
+        cli + (b'requirements', b'reconcile', b'--plan', out + b'/plan.json', b'--junit',
+               out + b'/requirements-proof.xml', b'--run-stage', b'red', b'--source-ref', source,
+               b'--output', out + b'/local-red-report.json', b'--summary', out + b'/local-red-summary.md'),
+        script + (core + b'/scripts/requirements_proof_provenance.py', b'--bind-red-proof',
+                  out + b'/local-red-report.json', b'--junit', out + b'/requirements-proof.xml',
+                  b'--repo-root', root, b'--base-ref', base),
+    )
+    return tuple(_OriginalVector(stage, argv, environment, root, code, seconds)
+                 for stage, argv, code, seconds in zip(
+                     _OriginalStage, vectors, (0, 1, 0, 0), (120, 660, 120, 120)))
 
 
 def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                         stage: _OriginalStage) -> _DirectResult:
-    raise NotImplementedError('NEW original row lifetime missing')
+    started = time.monotonic()
+    try:
+        if type(account) is not _AttemptAccount or type(stage) is not _OriginalStage:
+            raise ValueError('original-row-shape')
+        vector = _original_vectors(tool, prepared)[tuple(_OriginalStage).index(stage)]
+    except BaseException:
+        if type(account) is _AttemptAccount:
+            account.stopped = True
+        raise
+    deadline = owner_end = started
+    saved = None
+    installed = False
+    reason = primary = None
+    deadline_seen = False
+    row_pid = row_wait = row_status = None
+    row_cleanup = False
+    execution_ended = None
+    chunks = [[], []]
+    sizes = [0, 0]
+    outputs = [b'', b'']
+    copied = 0
+    scanned = 0
+    retained_before = account.retained_stream_bytes
+    child = None
+    pid = None
+    terminal = status = None
+    owned = False
+    leader_start = None
+    pipes = []
+    probing = True
+
+    def refuse(value):
+        raise _OriginalRowRefusal(value)
+
+    def remember(error):
+        nonlocal reason, primary, deadline_seen
+        if isinstance(error, Deadline):
+            deadline_seen = True
+            value = 'deadline'
+        elif type(error) is _OriginalRowRefusal:
+            value = error.args[0]
+            if probing and value in ('ownership', 'proc', 'cleanup', 'launch'):
+                value = 'prerequisite'
+        else:
+            if primary is None:
+                primary = error
+            value = 'exception'
+        if reason is None:
+            reason = value
+        account.stopped = True
+
+    def clock_check(strict=False):
+        nonlocal deadline_seen
+        if timer.end != owner_end:
+            remember(_OriginalRowRefusal('prerequisite'))
+        try:
+            timer.check()
+        except Deadline:
+            deadline_seen = True
+        if (timer.pending or timer.expired or time.monotonic() >= deadline
+                or time.monotonic_ns() >= account.deadline_ns):
+            deadline_seen = True
+        if deadline_seen:
+            remember(_OriginalRowRefusal('deadline'))
+        if strict and reason is not None:
+            refuse(reason)
+
+    def alarm(number, frame):
+        nonlocal deadline_seen
+        try:
+            saved(number, frame)
+        except Deadline:
+            deadline_seen = True
+
+    def preexec():
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        signal.pthread_sigmask(signal.SIG_SETMASK, set())
+        for kind, ceiling in ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
+                              (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
+                              (resource.RLIMIT_CORE, 0)):
+            soft, hard = resource.getrlimit(kind)
+            hard = ceiling if hard == resource.RLIM_INFINITY else min(hard, ceiling)
+            soft = hard if soft == resource.RLIM_INFINITY else min(soft, hard)
+            resource.setrlimit(kind, (soft, hard))
+        child_pid = os.getpid()
+        if child_pid <= 1 or os.getpgrp() != child_pid or os.getsid(0) != child_pid:
+            raise RuntimeError('original-child-session')
+        if time.monotonic() >= deadline or time.monotonic_ns() >= account.deadline_ns:
+            raise RuntimeError('original-child-deadline')
+
+    def outstanding():
+        return (len(account.secrets) + 2) * sum(sizes) - copied - scanned
+
+    def visit(end):
+        clock_check()
+        if time.monotonic() >= end:
+            refuse('cleanup')
+        if account.metadata_visits >= 20000:
+            refuse('budget')
+        account.metadata_visits += 1
+
+    def observe():
+        nonlocal owned, terminal
+        clock_check()
+        if not owned:
+            refuse('ownership')
+        try:
+            fact = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        except ChildProcessError:
+            owned = False
+            refuse('ownership')
+        except OSError:
+            if probing:
+                refuse('prerequisite')
+            raise
+        if fact is not None and fact.si_pid:
+            current = (fact.si_pid, fact.si_code, fact.si_status)
+            if (fact.si_pid != pid or fact.si_code not in (os.CLD_EXITED, os.CLD_KILLED, os.CLD_DUMPED)
+                    or terminal is not None and current != terminal):
+                owned = False
+                refuse('ownership')
+            terminal = current
+        clock_check()
+        return terminal
+
+    def identity():
+        nonlocal owned
+        observe()
+        try:
+            valid = pid > 1 and os.getpgid(pid) == pid and os.getsid(pid) == pid
+        except ProcessLookupError:
+            valid = False
+        if not valid:
+            owned = False
+            refuse('ownership')
+
+    def group_empty(end):
+        nonlocal leader_start, owned
+        visit(end)
+        visits = numeric = 0
+        found = False
+        empty = True
+        try:
+            with os.scandir('/proc') as entries:
+                while True:
+                    visit(end)
+                    visits += 1
+                    if visits > 20000:
+                        refuse('budget')
+                    try:
+                        entry = next(entries)
+                    except StopIteration:
+                        break
+                    if not entry.name.isascii() or not entry.name.isdecimal():
+                        continue
+                    numeric += 1
+                    if numeric > 20000 or len(entry.name) > 10:
+                        refuse('proc')
+                    visit(end)
+                    before = account.spent_bytes
+                    if before + outstanding() + 8193 > 255 * MIB:
+                        refuse('budget')
+                    descriptor = None
+                    try:
+                        descriptor = os.open('/proc/' + entry.name + '/stat',
+                                             os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                        clock_check()
+                        if time.monotonic() >= end:
+                            refuse('cleanup')
+                        raw = os.read(descriptor, 8193)
+                        account.read_bytes += len(raw)
+                        account.spent_bytes += len(raw)
+                        if not raw or len(raw) > 8192:
+                            refuse('proc')
+                        close = raw.rfind(b')')
+                        opening = raw.find(b' (')
+                        if opening < 1 or close <= opening + 1 or raw[close + 1:close + 2] != b' ':
+                            refuse('proc')
+                        fields = raw[close + 2:].split()
+                        if len(fields) < 20 or fields[0] not in (
+                                b'R', b'S', b'D', b'Z', b'T', b't', b'X', b'x', b'K', b'W', b'P', b'I'):
+                            refuse('proc')
+                        observed_pid = int(raw[:opening])
+                        group, session, start = int(fields[2]), int(fields[3]), int(fields[19])
+                        if observed_pid != int(entry.name) or min(observed_pid, group, session, start) < 0:
+                            refuse('proc')
+                        if observed_pid == pid:
+                            found = True
+                            if (group != pid or session != pid
+                                    or leader_start is not None and start != leader_start):
+                                owned = False
+                                refuse('ownership')
+                            leader_start = start
+                        if group == pid:
+                            if session != pid:
+                                refuse('proc')
+                            if not (observed_pid == pid and terminal is not None and fields[0] == b'Z'):
+                                empty = False
+                    except BaseException:
+                        account.spent_bytes = max(account.spent_bytes, before + 8193)
+                        raise
+                    finally:
+                        if descriptor is not None:
+                            previous_error = sys.exception()
+                            try:
+                                os.close(descriptor)
+                            except BaseException as error:
+                                account.spent_bytes = max(account.spent_bytes, before + 8193)
+                                if previous_error is not None:
+                                    remember(previous_error)
+                                    remember(error)
+                                    raise previous_error
+                                raise
+                    clock_check()
+            if not found:
+                owned = False
+                refuse('ownership')
+            return empty and terminal is not None
+        except (OSError, ValueError, IndexError):
+            refuse('proc')
+
+    def drain(end):
+        if probing or reason is not None or not pipes:
+            return False
+        clock_check(True)
+        progressed = False
+        ready, _, _ = select.select([pipe.fileno() for _, pipe in pipes], [], [], 0)
+        for index, pipe in tuple(pipes):
+            if pipe.fileno() not in ready:
+                continue
+            clock_check(True)
+            if time.monotonic() >= end:
+                refuse('cleanup')
+            capacity = min(8 * MIB - sizes[index], 16 * MIB - account.stream_bytes,
+                           16 * MIB - retained_before - sum(sizes))
+            available = 255 * MIB - account.spent_bytes - outstanding()
+            count = min(65536, capacity + 1, available // (len(account.secrets) + 3))
+            if count <= 0:
+                refuse('budget')
+            before = account.spent_bytes
+            try:
+                raw = os.read(pipe.fileno(), count)
+            except BlockingIOError:
+                continue
+            except BaseException:
+                account.spent_bytes = max(account.spent_bytes, before + (len(account.secrets) + 3) * count)
+                raise
+            account.read_bytes += len(raw)
+            account.stream_bytes += len(raw)
+            account.spent_bytes += len(raw)
+            progressed = True
+            if len(raw) > capacity:
+                refuse('stream-limit')
+            if raw:
+                chunks[index].append(raw)
+                sizes[index] += len(raw)
+            else:
+                pipe.close()
+                pipes.remove((index, pipe))
+            clock_check(True)
+        return progressed
+
+    def pause(end):
+        clock_check()
+        delay = min(.05, max(0.0, end - time.monotonic()))
+        if delay:
+            time.sleep(delay)
+        clock_check()
+
+    def signal_group(number):
+        identity()
+        os.killpg(pid, number)
+        clock_check()
+
+    def cleanup():
+        nonlocal status, owned
+        began = time.monotonic()
+        term_end, kill_end, reap_end = began + 5, began + 10, began + 15
+        clean = False
+        failed = False
+        try:
+            clock_check()
+            identity()
+            clean = group_empty(term_end)
+            if not clean:
+                signal_group(signal.SIGTERM)
+                while time.monotonic() < term_end:
+                    observe()
+                    drain(term_end)
+                    if group_empty(term_end):
+                        clean = True
+                        break
+                    pause(term_end)
+        except BaseException as error:
+            if not (type(error) is _OriginalRowRefusal and error.args == ('cleanup',)
+                    and time.monotonic() >= term_end):
+                failed = True
+                remember(error)
+        if not clean and owned:
+            try:
+                if time.monotonic() >= kill_end:
+                    refuse('cleanup')
+                signal_group(signal.SIGKILL)
+                while not failed and time.monotonic() < kill_end:
+                    observe()
+                    drain(kill_end)
+                    if group_empty(kill_end):
+                        clean = True
+                        break
+                    pause(kill_end)
+            except BaseException as error:
+                failed = True
+                remember(error)
+        if not clean:
+            remember(_OriginalRowRefusal('cleanup'))
+        while owned and status is None and time.monotonic() < reap_end:
+            try:
+                observe()
+            except BaseException as error:
+                failed = True
+                remember(error)
+            if not owned:
+                break
+            try:
+                found, value = os.waitpid(pid, os.WNOHANG)
+                if found:
+                    status = value
+                    owned = False
+                    child.returncode = os.waitstatus_to_exitcode(value)
+                    consistent = (found == pid and terminal is not None and (
+                        terminal[1] == os.CLD_EXITED and os.WIFEXITED(value)
+                        and os.WEXITSTATUS(value) == terminal[2]
+                        or terminal[1] in (os.CLD_KILLED, os.CLD_DUMPED) and os.WIFSIGNALED(value)
+                        and os.WTERMSIG(value) == terminal[2]
+                        and bool(os.WCOREDUMP(value)) == (terminal[1] == os.CLD_DUMPED)))
+                    if not consistent:
+                        failed = True
+                        remember(_OriginalRowRefusal('ownership'))
+                    break
+                drain(reap_end)
+                pause(reap_end)
+            except ChildProcessError:
+                owned = False
+                failed = True
+                remember(_OriginalRowRefusal('ownership'))
+            except BaseException as error:
+                failed = True
+                remember(error)
+                if type(error) is _OriginalRowRefusal and error.args[0] == 'ownership':
+                    break
+                pause(reap_end)
+        if status is None:
+            failed = True
+            remember(_OriginalRowRefusal('cleanup'))
+        while pipes and reason is None and time.monotonic() < reap_end:
+            try:
+                progressed = drain(reap_end)
+                if pipes and not progressed:
+                    pause(reap_end)
+            except BaseException as error:
+                remember(error)
+                break
+        if pipes and reason is None:
+            remember(_OriginalRowRefusal('cleanup'))
+        return clean and not failed and status is not None
+
+    try:
+        if (type(account.stopped) is not bool or account.stopped
+                or not _owned_integer(account.deadline_ns, 2**63 - 1, 1)
+                or not _owned_integer(account.spent_bytes, 255 * MIB)
+                or not _owned_integer(account.read_bytes, 255 * MIB)
+                or account.read_bytes > account.spent_bytes
+                or not _owned_integer(account.retained_bytes, 16 * MIB)
+                or not _owned_integer(account.retained_members, 64)
+                or not _owned_integer(account.metadata_visits, 20000)
+                or not _owned_integer(account.stream_bytes, 16 * MIB)
+                or not _owned_integer(account.retained_stream_bytes, 16 * MIB)
+                or type(account.row_seconds) not in (int, float)
+                or not math.isfinite(account.row_seconds) or not 0 <= account.row_seconds <= 1020
+                or type(account.secrets) is not tuple or len(account.secrets) > 32
+                or any(type(secret) is not bytes or not 8 <= len(secret) <= 4096
+                       for secret in account.secrets)):
+            refuse('budget')
+        if (account.spent_bytes >= 255 * MIB or account.metadata_visits >= 20000
+                or account.stream_bytes >= 16 * MIB or account.retained_stream_bytes >= 16 * MIB):
+            refuse('budget')
+        if (type(timer) is not Timer or type(timer.end) not in (int, float)
+                or not math.isfinite(timer.end)):
+            refuse('prerequisite')
+        owner_end = timer.end
+        deadline = min(started + vector.seconds, owner_end, started + 1020 - account.row_seconds,
+                       account.deadline_ns / 1_000_000_000)
+        saved = signal.getsignal(signal.SIGALRM)
+        if (getattr(saved, '__self__', None) is not timer
+                or getattr(saved, '__func__', None) is not Timer.alarm):
+            refuse('prerequisite')
+        clock_check(True)
+        if (sys.platform != 'linux' or threading.current_thread() is not threading.main_thread()
+                or threading.active_count() != 1 or not callable(getattr(os, 'waitid', None))
+                or not all(hasattr(os, name) for name in ('P_PID', 'WEXITED', 'WNOHANG', 'WNOWAIT'))
+                or signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL
+                or signal.SIGALRM in signal.pthread_sigmask(signal.SIG_BLOCK, set())):
+            refuse('prerequisite')
+        installed = True
+        signal.signal(signal.SIGALRM, alarm)
+        visit(deadline)
+        try:
+            with os.scandir('/proc/self/task') as tasks:
+                count = 0
+                while True:
+                    visit(deadline)
+                    try:
+                        task = next(tasks)
+                    except StopIteration:
+                        break
+                    count += 1
+                    if count > 1 or not task.name.isdecimal():
+                        refuse('prerequisite')
+                if count != 1:
+                    refuse('prerequisite')
+        except OSError:
+            refuse('prerequisite')
+        for probing in (True, False):
+            child = None
+            pid = terminal = status = leader_start = None
+            owned = False
+            pipes = []
+            try:
+                clock_check(True)
+                argv = (os.fsencode(sys.executable), b'-I', b'-S', b'-c', b'pass') if probing else vector.argv
+                try:
+                    child = subprocess.Popen(argv, shell=False, close_fds=True, pass_fds=(),
+                                             start_new_session=True, stdin=subprocess.DEVNULL,
+                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                             env=dict(vector.environment), cwd=vector.cwd, preexec_fn=preexec)
+                except (OSError, subprocess.SubprocessError):
+                    refuse('prerequisite' if probing else 'launch')
+                pid = child.pid
+                owned = True
+                if not probing:
+                    row_pid = pid
+                identity()
+                if not probing:
+                    pipes = list(enumerate((child.stdout, child.stderr)))
+                    for _, pipe in pipes:
+                        os.set_blocking(pipe.fileno(), False)
+                clock_check(True)
+                while terminal is None:
+                    clock_check(True)
+                    progressed = drain(deadline)
+                    observe()
+                    if terminal is None and not progressed:
+                        pause(deadline)
+                clock_check(True)
+                if probing:
+                    first = terminal
+                    if observe() != first or first[1:] != (os.CLD_EXITED, 0):
+                        refuse('prerequisite')
+                elif terminal[1:] != (os.CLD_EXITED, vector.expected_exit):
+                    refuse('exit')
+            except BaseException as error:
+                remember(error)
+            finally:
+                if not probing:
+                    execution_ended = time.monotonic()
+                complete = False
+                if child is not None:
+                    try:
+                        complete = cleanup()
+                    except BaseException as error:
+                        remember(error)
+                    finally:
+                        for pipe in (child.stdin, child.stdout, child.stderr):
+                            if pipe is not None:
+                                try:
+                                    pipe.close()
+                                except BaseException as error:
+                                    complete = False
+                                    remember(error)
+                        if status is None:
+                            # An implicit destructor reap would bypass the recorded ownership failure.
+                            child._child_created = False
+                if not probing:
+                    row_wait, row_status, row_cleanup = terminal, status, complete
+                elif not complete:
+                    remember(_OriginalRowRefusal('prerequisite'))
+            if reason is not None:
+                break
+        if reason is None:
+            clock_check(True)
+            for index in range(2):
+                size = sizes[index]
+                outputs[index] = b''.join(chunks[index])
+                account.spent_bytes += size
+                copied += size
+                chunks[index].clear()
+                for secret in account.secrets:
+                    clock_check(True)
+                    account.spent_bytes += size
+                    scanned += size
+                    if secret in outputs[index]:
+                        refuse('stream-limit')
+                clock_check(True)
+                account.spent_bytes += size
+                scanned += size
+                if re.search(
+                        rb'(?i)(?:authorization\s*:\s*bearer |github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+|X-Amz-Signature=|sig=)',
+                        outputs[index]) is not None:
+                    refuse('stream-limit')
+            clock_check(True)
+    except BaseException as error:
+        remember(error)
+    finally:
+        if execution_ended is None:
+            execution_ended = time.monotonic()
+        if type(account.row_seconds) in (int, float) and math.isfinite(account.row_seconds):
+            account.row_seconds += max(0.0, execution_ended - started)
+        if installed:
+            try:
+                clock_check()
+            except BaseException as error:
+                remember(error)
+            finally:
+                for _ in range(2):
+                    try:
+                        signal.signal(signal.SIGALRM, saved)
+                    except BaseException as error:
+                        remember(error)
+                    if signal.getsignal(signal.SIGALRM) is saved:
+                        break
+                try:
+                    clock_check()
+                except BaseException as error:
+                    remember(error)
+        if reason is not None:
+            outputs = [b'', b'']
+            chunks[0].clear()
+            chunks[1].clear()
+        else:
+            account.retained_stream_bytes = retained_before + sum(sizes)
+        result = _DirectResult(stage, vector, row_pid, started, deadline, time.monotonic(),
+                               row_wait, row_status, outputs[0], outputs[1], row_cleanup,
+                               deadline_seen, reason or 'complete')
+        account.last_direct = result
+    if primary is not None:
+        raise primary
+    if reason is not None:
+        raise _OriginalStageError(result)
+    return result
 
 
 class _SourceRole(Enum):
