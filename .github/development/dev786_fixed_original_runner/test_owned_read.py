@@ -220,6 +220,22 @@ class OwnedReadTests(unittest.TestCase):
         self.assertEqual(self.opens, [])
         self.assert_stopped(0)
 
+    def test_filesystem_anchor_is_refused_before_metadata(self):
+        self.account.root = dataclasses.replace(self.binding, path=Path('/'))
+        with (
+            patch.object(self.subject.os, 'lstat', wraps=os.lstat) as lstat_call,
+            patch.object(self.subject.os, 'fstat', wraps=os.fstat) as fstat_call,
+            patch.object(self.subject.os, 'stat', wraps=os.stat) as stat_call,
+            patch.object(self.subject.os, 'open', wraps=os.open) as open_call,
+            patch.object(self.subject.os, 'read', wraps=os.read) as read_call,
+        ):
+            with self.assertRaises(self.subject._OwnedReadError):
+                self.read()
+        for call in (lstat_call, fstat_call, stat_call, open_call, read_call):
+            call.assert_not_called()
+        self.assertEqual(self.account.metadata_visits, 0)
+        self.assert_stopped(0)
+
     def test_child_symlink_and_directory_are_refused(self):
         self.path.unlink()
         self.path.symlink_to(self.root / 'elsewhere')

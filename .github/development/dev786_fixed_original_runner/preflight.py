@@ -1326,8 +1326,141 @@ class _OwnedReadError(RuntimeError):
     pass
 
 
+def _owned_require(condition: bool) -> None:
+    if not condition:
+        raise _OwnedReadError('Owned read refused')
+
+
+def _owned_integer(value: int, upper: int, lower: int = 0) -> bool:
+    return type(value) is int and lower <= value <= upper
+
+
+def _owned_clock(account: _AttemptAccount) -> None:
+    _owned_require(time.monotonic_ns() < account.deadline_ns)
+
+
+def _owned_visit(account: _AttemptAccount) -> None:
+    _owned_clock(account)
+    _owned_require(account.metadata_visits < 20000)
+    account.metadata_visits += 1
+
+
+def _owned_root_check(account: _AttemptAccount) -> None:
+    root = account.root
+    path = Path(root.path.anchor)
+    for component in root.path.parts[1:]:
+        path = path / component
+        _owned_visit(account)
+        value = os.lstat(path)
+        _owned_require(stat.S_ISDIR(value.st_mode))
+    _owned_require((value.st_dev, value.st_ino, value.st_uid, value.st_mode)
+                   == (root.device, root.inode, root.uid, root.mode))
+    _owned_visit(account)
+    value = os.fstat(root.descriptor)
+    _owned_require((value.st_dev, value.st_ino, value.st_uid, value.st_mode)
+                   == (root.device, root.inode, root.uid, root.mode))
+
+
+def _owned_file_identity(value: os.stat_result) -> _FileIdentity:
+    _owned_require(all(_owned_integer(number, 2**64 - 1) for number in (
+        value.st_dev, value.st_ino, value.st_nlink, value.st_size)))
+    _owned_require(all(_owned_integer(number, 2**32 - 1) for number in (
+        value.st_mode, value.st_uid, value.st_gid)))
+    _owned_require(all(_owned_integer(number, 2**63 - 1, -(2**63)) for number in (
+        value.st_mtime_ns, value.st_ctime_ns)))
+    _owned_require(stat.S_ISREG(value.st_mode) and value.st_uid == os.getuid()
+                   and value.st_nlink == 1 and value.st_mode & 0o077 == 0
+                   and value.st_size <= 8 * MIB)
+    return _FileIdentity(value.st_dev, value.st_ino, value.st_mode, value.st_uid,
+                         value.st_gid, value.st_nlink, value.st_size,
+                         value.st_mtime_ns, value.st_ctime_ns)
+
+
 def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRead:
-    raise NotImplementedError('NEW owned-read boundary missing')
+    admitted = 0
+    try:
+        _owned_require(type(account) is _AttemptAccount)
+        _owned_require(type(account.stopped) is bool and not account.stopped)
+        _owned_require(type(role) is _SourceRole and role is _SourceRole.PLAN)
+        _owned_require(type(account.root) is _OwnedRoot)
+        root = account.root
+        _owned_require(type(root.path) is type(Path()))
+        _owned_require(_owned_integer(root.descriptor, 2**31 - 1))
+        _owned_require(all(_owned_integer(number, 2**64 - 1)
+                           for number in (root.device, root.inode)))
+        _owned_require(all(_owned_integer(number, 2**32 - 1)
+                           for number in (root.uid, root.mode)))
+        _owned_require(root.uid == os.getuid() and root.mode == stat.S_IFDIR | 0o700)
+        _owned_require(_owned_integer(account.deadline_ns, 2**63 - 1, 1))
+        _owned_require(_owned_integer(account.spent_bytes, 255 * MIB)
+                       and _owned_integer(account.read_bytes, 255 * MIB)
+                       and account.read_bytes <= account.spent_bytes
+                       and _owned_integer(account.retained_bytes, 16 * MIB)
+                       and _owned_integer(account.retained_members, 64)
+                       and _owned_integer(account.metadata_visits, 20000))
+        _owned_require(type(account.secrets) is tuple and len(account.secrets) <= 32)
+        _owned_require(all(type(secret) is bytes and 8 <= len(secret) <= 4096
+                           for secret in account.secrets))
+        name = str(root.path)
+        depth = len(root.path.parts) - 1
+        _owned_require(root.path.is_absolute() and root.path.anchor == '/'
+                       and 1 <= depth <= 64 and len(os.fsencode(name)) <= 4096
+                       and os.path.normpath(name) == name
+                       and all(part not in ('.', '..') for part in root.path.parts[1:]))
+        _owned_require(account.metadata_visits + 2 * depth + 6 <= 20000)
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        _owned_clock(account)
+        _owned_root_check(account)
+        _owned_visit(account)
+        before = _owned_file_identity(os.stat('plan.json', dir_fd=root.descriptor,
+                                              follow_symlinks=False))
+        size = before.size
+        work = (len(account.secrets) + 4) * (size + 1)
+        _owned_require(account.spent_bytes + work <= 255 * MIB
+                       and account.retained_bytes + size <= 16 * MIB
+                       and account.retained_members + 1 <= 64)
+        admitted = work
+        _owned_clock(account)
+        descriptor = os.open('plan.json', flags, dir_fd=root.descriptor)
+        try:
+            _owned_visit(account)
+            opened = _owned_file_identity(os.fstat(descriptor))
+            _owned_require(opened == before)
+            _owned_clock(account)
+            data = os.read(descriptor, size + 1)
+            account.read_bytes += len(data)
+            _owned_require(len(data) == size)
+            _owned_clock(account)
+            digest = hashlib.sha256(data).hexdigest()
+            for secret in account.secrets:
+                _owned_clock(account)
+                _owned_require(secret not in data)
+            _owned_clock(account)
+            _owned_require(re.search(
+                rb'(?i)(?:authorization\s*:\s*bearer |github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+|X-Amz-Signature=|sig=)',
+                data) is None)
+            _owned_visit(account)
+            after = _owned_file_identity(os.fstat(descriptor))
+            _owned_require(after == before)
+            _owned_root_check(account)
+            _owned_visit(account)
+            current = _owned_file_identity(os.stat('plan.json', dir_fd=root.descriptor,
+                                                   follow_symlinks=False))
+            _owned_require(current == before)
+        finally:
+            os.close(descriptor)
+        _owned_clock(account)
+        result = _CompleteOwnedRead(role, data, digest, before, opened, after, current)
+        account.spent_bytes += (len(account.secrets) + 4) * size
+        account.retained_bytes += size
+        account.retained_members += 1
+        return result
+    except BaseException:
+        if type(account) is _AttemptAccount:
+            account.stopped = True
+            if admitted:
+                account.spent_bytes += admitted
+        raise _OwnedReadError('Owned read refused') from None
 
 
 if __name__ == '__main__':
