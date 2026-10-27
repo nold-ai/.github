@@ -1,0 +1,171 @@
+{
+  "policies": {
+    ".github/native-tools/dev786/build-locked.txt": {
+      "bytes": 741,
+      "sha256": "928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7"
+    },
+    ".github/native-tools/dev786/build-requirements.in": {
+      "bytes": 61,
+      "sha256": "d419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df"
+    },
+    ".github/native-tools/dev786/locked.txt": {
+      "bytes": 65303,
+      "sha256": "a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341"
+    },
+    ".github/native-tools/dev786/requirements.in": {
+      "bytes": 413,
+      "sha256": "fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f"
+    },
+    ".github/native-tools/dev786/runtime.json": {
+      "bytes": 1352,
+      "sha256": "7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f"
+    },
+    ".github/native-tools/dev786/tool-files.json": {
+      "bytes": 409,
+      "sha256": "969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad"
+    },
+    ".github/scripts/late_cycle_admission.py": {
+      "bytes": 41624,
+      "sha256": "57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64"
+    },
+    ".github/scripts/native_requirements_acquisition.py": {
+      "bytes": 8887,
+      "sha256": "eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe"
+    },
+    ".github/scripts/native_requirements_bootstrap.py": {
+      "bytes": 18504,
+      "sha256": "41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4"
+    },
+    ".github/scripts/native_requirements_materialization.py": {
+      "bytes": 36385,
+      "sha256": "029634a7336e5738a369cd1f2a5cbbf1bda1595cfd6564c043c77aceecb0e4bf"
+    }
+  },
+  "source": ".github/development/dev786_original_replay",
+  "sources": {
+    "BUNDLE_SPEC.md": {
+      "bytes": 25473,
+      "sha256": "6f7f38a797b179a93db9ae4dba29beafe7251c54e85f3328d8b8dfa34eba17cf"
+    },
+    "SPEC.md": {
+      "bytes": 46898,
+      "sha256": "0f0f49825c035c9a78d21bf84b79e2f189c9bd85b49cce28fb7229e6cab26388"
+    },
+    "build.py": {
+      "bytes": 8199,
+      "sha256": "184b2f9e0936755ef9b9125c40c519364efef80b24cc4e7e8fcff457bab07919"
+    },
+    "fixtures/compare.json": {
+      "bytes": 326,
+      "sha256": "e49c731f723a5bfe5daae171806b3e37caad1f46902e37a27d7bb6800a0f8599"
+    },
+    "fixtures/corrupt-input-envelope.json": {
+      "bytes": 738,
+      "sha256": "873544e96ec37ac6b2557691048493a492557aaade29a6eab0eb2606a451eeb5"
+    },
+    "fixtures/corrupt-requirements.in": {
+      "bytes": 413,
+      "sha256": "b909849caf501cb1343aecf0e80fc26bf997126a78d574c46881d5e54741b18b"
+    },
+    "fixtures/index-envelope.json": {
+      "bytes": 638,
+      "sha256": "50e7030d2509d0adeae22777643fcae3af4ce8656c65fc623fe46fc7ea9ef520"
+    },
+    "fixtures/index.json": {
+      "bytes": 347,
+      "sha256": "8bb0276e13664a5208a26451fd66a7e83620c445209b0d24a569daf78d78bc27"
+    },
+    "fixtures/main.json": {
+      "bytes": 101,
+      "sha256": "2e6ee0a8cf7619f4dbe5624eb4814d59df4a701158d64c8af177c426e30b71db"
+    },
+    "fixtures/moved-main.json": {
+      "bytes": 101,
+      "sha256": "9187f2fd6a58682fcd4965fefc100865e6d7b8f5155034d382a24b478e8d664e"
+    },
+    "fixtures/wrong-index-envelope.json": {
+      "bytes": 638,
+      "sha256": "29ef78589ab54e3eba309f464d21d5051d0041eb93a1a05fda292d43034805b5"
+    },
+    "fixtures/wrong-index.json": {
+      "bytes": 347,
+      "sha256": "cd491ae49ee174fc79d4eed775b22c03156d2d39ad147769da3a5afbed171359"
+    },
+    "observation.py": {
+      "bytes": 63718,
+      "sha256": "0ef26b2a26ed050a90636b12c4b05b01d907b3f7ae78bac523e371cf4ebc1d0d"
+    },
+    "preflight.py": {
+      "bytes": 74457,
+      "sha256": "5ea0e7249a093a6fe11e0e96a15c7258222f6d2eeb884ba312ba58eccd24765f"
+    },
+    "replay.py": {
+      "bytes": 59108,
+      "sha256": "de4e2aa88d99949e6fa3b4fd47c295c9d08bddba2c089a7ec17b7ba52d9866d3"
+    },
+    "test_bundle_loading.py": {
+      "bytes": 43561,
+      "sha256": "6b68d2b66fbd2840350bde3fe7a5359d1992bc70012b2466ec03f223c55a10d1"
+    },
+    "test_capture_handoff.py": {
+      "bytes": 147562,
+      "sha256": "a994e6a2a73757a9a19111c6a75fac1722b3b2f8f9db8dcbca6adfb5bfda2f45"
+    },
+    "test_observation.py": {
+      "bytes": 28026,
+      "sha256": "0384af2a1d18e3080318e47570bd16866b0d9b544d405c2fbc907f4249bce715"
+    }
+  },
+  "test_ids": [
+    "test_bundle_loading.BundleLoadingTests.test_actual_decoder_rejects_coherent_untrusted_helper_metadata_and_source_cap",
+    "test_bundle_loading.BundleLoadingTests.test_ambient_same_name_poison_cannot_supply_missing_or_valid_helper",
+    "test_bundle_loading.BundleLoadingTests.test_builder_checks_fixed_helper_identity_before_packaging",
+    "test_bundle_loading.BundleLoadingTests.test_closed_delivery_preserves_fixed_inputs_and_existing_driver_owners",
+    "test_bundle_loading.BundleLoadingTests.test_extracted_loader_refuses_each_helper_change_before_execution",
+    "test_bundle_loading.BundleLoadingTests.test_real_generated_bundle_reaches_accepted_inspect_and_raw_refusals",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_closure_is_held_once_and_spent_even_when_it_fails",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_common_residuals_obey_component_and_projection_bounds",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_constructor_prepays_history_and_rejects_inconsistent_witnesses",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_duplicate_stale_and_foreign_real_returns_stop_once",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_each_observed_traversal_has_an_admission_boundary",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_initialization_itinerary_adoption_and_bounded_enumeration",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_interruption_before_and_after_atomic_store",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_malformed_and_overbudget_real_returns_burn_one_grant",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_nested_entry_denies_work_and_burns_outer_grant_once",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_real_inspection_loss_and_baseexception_keep_trusted_history",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_record_cap_preserves_paid_rereads_and_session_bindings",
+    "test_capture_handoff.CaptureHandoffTests.test_accounting_repeated_wire_references_do_not_expand_history_or_payload",
+    "test_capture_handoff.CaptureHandoffTests.test_actual_nonzero_signal_limits_withholding_and_synthetic_edits",
+    "test_capture_handoff.CaptureHandoffTests.test_actual_unsupported_syntax_collector_error_and_owned_timeout",
+    "test_capture_handoff.CaptureHandoffTests.test_both_preloads_refuse_without_executing_or_removing_foreign_modules",
+    "test_capture_handoff.CaptureHandoffTests.test_cleanup_never_signals_reused_group_after_owned_child_reap",
+    "test_capture_handoff.CaptureHandoffTests.test_fixed_capture_receipts_keep_cumulative_reread_and_refusal_charges",
+    "test_capture_handoff.CaptureHandoffTests.test_inspection_returns_a_matching_measured_operation_delta",
+    "test_capture_handoff.CaptureHandoffTests.test_interruption_at_either_helper_rolls_back_owned_registrations",
+    "test_capture_handoff.CaptureHandoffTests.test_loader_directory_admission_bounds_real_os_work_before_refusal",
+    "test_capture_handoff.CaptureHandoffTests.test_partial_extents_cannot_establish_full_identity_or_task_success",
+    "test_capture_handoff.CaptureHandoffTests.test_plain_capture_malformed_bindings_lose_one_grant_and_preserve_trusted_history",
+    "test_capture_handoff.CaptureHandoffTests.test_plain_capture_receipt_keeps_canonical_identity_and_paid_inspection_rereads",
+    "test_capture_handoff.CaptureHandoffTests.test_real_decoder_rejects_self_rehashed_replay_and_preserves_source_cap",
+    "test_capture_handoff.CaptureHandoffTests.test_real_generated_loader_returns_two_modules_and_initialization",
+    "test_capture_handoff.CaptureHandoffTests.test_real_untraced_gap_pair_preserves_original_clock_and_cleanup",
+    "test_capture_handoff.CaptureHandoffTests.test_second_source_identity_is_verified_before_first_source_executes",
+    "test_capture_handoff.CaptureHandoffTests.test_stream_roles_shared_stderr_and_timeout_wait_remain_independent",
+    "test_capture_handoff.CaptureHandoffTests.test_unknown_launch_and_association_are_truthful_inputs",
+    "test_capture_handoff.CaptureHandoffTests.test_withheld_required_member_has_only_safe_metadata_and_no_derived_facts",
+    "test_capture_handoff.CurrentInspectorNewOutputTests.test_unjoined_normal_and_signal_markers_survive_unsupported_grammar",
+    "test_observation.ObservationBehaviorTests.test_child_without_exec_requires_its_own_actual_terminal",
+    "test_observation.ObservationBehaviorTests.test_complete_exec_binds_identity_arguments_environment_and_raw_bytes",
+    "test_observation.ObservationBehaviorTests.test_correlated_wait_justifies_shared_cwd_with_a_complete_dependency_chain",
+    "test_observation.ObservationBehaviorTests.test_declared_member_length_and_digest_are_binding",
+    "test_observation.ObservationBehaviorTests.test_failed_exec_preserves_old_image_before_success_and_normal_exit_seven",
+    "test_observation.ObservationBehaviorTests.test_launch_and_tracer_wait_do_not_replace_observed_child_facts",
+    "test_observation.ObservationBehaviorTests.test_missing_and_orphan_trace_members_refuse_task_inference",
+    "test_observation.ObservationBehaviorTests.test_quoted_path_and_argv_ellipses_remain_literal_data",
+    "test_observation.ObservationBehaviorTests.test_unmodeled_unshare_invalidates_inference_but_not_a_direct_operation",
+    "test_observation.ObservationBehaviorTests.test_unordered_shared_cwd_stays_unknown_despite_timestamps_and_one_direct_use",
+    "test_observation.ObservationBehaviorTests.test_unquoted_ellipsis_in_each_fd_annotation_refuses_path_credit",
+    "test_observation.ObservationBehaviorTests.test_wait_and_exit_request_cannot_supply_a_missing_child_terminal"
+  ],
+  "version": 1
+}
