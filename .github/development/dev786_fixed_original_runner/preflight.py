@@ -10,10 +10,14 @@ import json
 import os
 import platform
 import re
+import resource
+import select
 import signal
 import stat
+import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -1535,6 +1539,23 @@ class _OriginalRChild:
 
 
 @dataclass
+class _OriginalRGit:
+    argv: tuple[str, ...]
+    started_ns: int
+    deadline_ns: int
+    process: object | None = None
+    pid: int | None = None
+    waitid: tuple[int, int, int] | None = None
+    wait_status: int | None = None
+    ended_ns: int | None = None
+    stdout: bytes = b''
+    stderr: bytes = b''
+    receipt: bytes = b''
+    cleanup_complete: bool = False
+    reason: str = 'incomplete'
+
+
+@dataclass
 class _OriginalRPreparation:
     started_ns: int
     deadline_ns: int
@@ -1545,6 +1566,9 @@ class _OriginalRPreparation:
     repository_metadata: bytes | None = None
     parent_metadata: bytes | None = None
     commit_metadata: bytes | None = None
+    commands: tuple[_OriginalRGit, ...] = ()
+    scans: tuple[tuple[int, int], ...] = ()
+    metadata_bytes: int = 0
     complete: bool = False
 
 
@@ -1570,8 +1594,746 @@ class _OriginalRNotImplemented(RuntimeError):
     pass
 
 
+_ORIGINAL_R = '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+_ORIGINAL_R_TREE = 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
+_ORIGINAL_C_TREE = '24112d8c9983333f9059283965230348f718b74c'
+_ORIGINAL_R_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
+_ORIGINAL_R_SOURCES = (
+    ('tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
+    ('tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
+    ('tests/unit/scripts/test_security_audit_gate.py', '5100ceaa78a4381b8565f5a3c996e8d8b15ceda44d18de9ebcf04eb0561f81a3'),
+    ('tests/unit/security/test_frozen_gitpython_compatibility.py', 'c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af'),
+    ('tests/unit/security/test_release_dependency_selection.py', 'f713acdfeba8235bd5f7e2c22b7a29585d61693798972b6e9a24a31423e7a4e6'),
+    ('scripts/requirements_proof_pytest_plugin.py', '31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8'),
+    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', '6a1f812cc9a0be0adf260cdfb48dda0a5af3c41b5827259459373123861e9e20'),
+    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', 'a5664876536b22616c93489ceb4baacd9ba07515f83216e2441289aaf3606707'),
+    ('requirements/ci/locked.txt', '0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266'),
+    ('uv.lock', '850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7'),
+)
+
+
+def _original_r_require(condition):
+    if not condition:
+        raise _OriginalRPreparationError('Original R preparation refused')
+
+
+@contextmanager
+def _original_r_registration():
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
+    try:
+        yield
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
 def _prepare_original_r(account, api):
-    raise _OriginalRNotImplemented('NEW original R preparation is not implemented')
+    started = time.monotonic_ns()
+    try:
+        _original_r_require(type(account) is _AttemptAccount
+                            and type(account.stopped) is bool and not account.stopped
+                            and account.preparation is None)
+        _original_r_require(_owned_integer(account.deadline_ns, 2**63 - 1, 1))
+        preparation = _OriginalRPreparation(started, min(started + 360_000_000_000,
+                                                        account.deadline_ns))
+        account.preparation = preparation
+        _original_r_require(type(account.root) is _OwnedRoot
+                            and type(account.root.path) is type(Path())
+                            and account.root.path.is_absolute()
+                            and account.root.path.anchor == '/'
+                            and 1 <= len(account.root.path.parts) - 1 <= 64
+                            and os.path.normpath(str(account.root.path)) == str(account.root.path)
+                            and len(os.fsencode(account.root.path)) <= 4096
+                            and '\0' not in str(account.root.path)
+                            and _owned_integer(account.root.descriptor, 2**31 - 1)
+                            and account.root.uid == os.getuid()
+                            and account.root.mode == stat.S_IFDIR | 0o700)
+        _original_r_require(all(_owned_integer(value, upper) for value, upper in (
+            (account.root.device, 2**64 - 1), (account.root.inode, 2**64 - 1),
+            (account.root.uid, 2**32 - 1), (account.root.mode, 2**32 - 1),
+            (account.spent_bytes, 255 * MIB), (account.read_bytes, 255 * MIB),
+            (account.retained_bytes, 16 * MIB), (account.retained_members, 64),
+            (account.metadata_visits, 20000))))
+        _original_r_require(account.read_bytes <= account.spent_bytes
+                            and type(account.secrets) is tuple and len(account.secrets) <= 32
+                            and all(type(value) is bytes and 8 <= len(value) <= 4096
+                                    for value in account.secrets))
+        _original_r_require(sys.platform == 'linux'
+                            and threading.current_thread() is threading.main_thread()
+                            and threading.active_count() == 1
+                            and signal.getsignal(signal.SIGCHLD) == signal.SIG_DFL
+                            and callable(getattr(os, 'waitid', None))
+                            and all(hasattr(os, name) for name in
+                                    ('P_PID', 'WEXITED', 'WNOHANG', 'WNOWAIT', 'O_NOFOLLOW'))
+                            and signal.SIGALRM not in signal.pthread_sigmask(signal.SIG_BLOCK, set()))
+        remaining = (preparation.deadline_ns - time.monotonic_ns()) / 1_000_000_000
+        _original_r_require(remaining > 0)
+
+        with Timer(remaining) as timer:
+            def clock():
+                timer.check()
+                _original_r_require(time.monotonic_ns() < preparation.deadline_ns
+                                    and time.monotonic_ns() < account.deadline_ns)
+
+            def visit(end=None):
+                if end is None:
+                    clock()
+                else:
+                    _original_r_require(time.monotonic_ns() < end)
+                _original_r_require(account.metadata_visits < 20000)
+                account.metadata_visits += 1
+
+            def charge(size):
+                _original_r_require(type(size) is int and size >= 0
+                                    and account.spent_bytes + size <= 255 * MIB)
+                account.spent_bytes += size
+
+            def sensitive(raw):
+                for value in account.secrets:
+                    _original_r_require(value not in raw)
+                _original_r_require(re.search(
+                    rb'(?i)(?:authorization\s*:\s*bearer |github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+|X-Amz-Signature=|sig=)',
+                    raw) is None)
+
+            def retain(raw):
+                _original_r_require(preparation.metadata_bytes + len(raw) <= 8 * MIB)
+                preparation.metadata_bytes += len(raw)
+
+            clock()
+            _owned_root_check(account)
+            visit()
+            with os.scandir('/proc/self/task') as tasks:
+                visit()
+                _original_r_require(next(tasks, None) is not None)
+                visit()
+                _original_r_require(next(tasks, None) is None)
+            for name, relative in (('root', 'original-r'), ('home', 'home'),
+                                   ('tmp', 'tmp'), ('template', 'git-template')):
+                clock()
+                child = _OriginalRChild(account.root.path / relative)
+                setattr(preparation, name, child)
+                visit()
+                with _original_r_registration():
+                    os.mkdir(relative, mode=0o700, dir_fd=account.root.descriptor)
+                    child.created = True
+                    value = os.stat(relative, dir_fd=account.root.descriptor, follow_symlinks=False)
+                    child.device, child.inode, child.uid, child.mode = (
+                        value.st_dev, value.st_ino, value.st_uid, value.st_mode)
+                    _original_r_require(value.st_mode == stat.S_IFDIR | 0o700
+                                        and value.st_uid == os.getuid())
+                    child.descriptor = os.open(relative, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                               dir_fd=account.root.descriptor)
+                clock()
+                visit()
+                value = os.fstat(child.descriptor)
+                _original_r_require((value.st_dev, value.st_ino, value.st_uid, value.st_mode)
+                                    == (child.device, child.inode, child.uid, child.mode))
+
+            root = preparation.root.path
+            environment = {'HOME': str(preparation.home.path), 'TMPDIR': str(preparation.tmp.path),
+                           'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+                           'GIT_TERMINAL_PROMPT': '0'}
+
+            def children_check():
+                for child in (preparation.root, preparation.home, preparation.tmp, preparation.template):
+                    expected = (child.device, child.inode, child.uid, child.mode)
+                    visit()
+                    value = os.stat(child.path, follow_symlinks=False)
+                    _original_r_require((value.st_dev, value.st_ino, value.st_uid, value.st_mode) == expected)
+                    visit()
+                    value = os.fstat(child.descriptor)
+                    _original_r_require((value.st_dev, value.st_ino, value.st_uid, value.st_mode) == expected)
+
+            def metadata(path, slot):
+                clock()
+                maximum = (len(account.secrets) + 5) * (4 * MIB + 1)
+                before = account.spent_bytes
+                _original_r_require(before + maximum <= 255 * MIB)
+                try:
+                    raw = transport.get(path)
+                    with _original_r_registration():
+                        _original_r_require(type(raw) is bytes and len(raw) <= 4 * MIB)
+                        account.read_bytes += len(raw)
+                        charge((len(account.secrets) + 5) * len(raw))
+                    sensitive(raw)
+                    value = sys.modules['late_cycle_admission'].json_object(raw)
+                    retain(raw)
+                    setattr(preparation, slot, raw)
+                    clock()
+                    return value
+                except BaseException:
+                    account.spent_bytes = max(account.spent_bytes, before + maximum)
+                    raise
+
+            def commit_metadata(value, commit, tree):
+                _original_r_require(type(value) is dict and value.get('sha') == commit
+                                    and type(value.get('tree')) is dict
+                                    and value['tree'].get('sha') == tree
+                                    and type(value.get('parents')) is list
+                                    and len(value['parents']) <= 16)
+                for parent in value['parents']:
+                    _original_r_require(type(parent) is dict and type(parent.get('sha')) is str
+                                        and re.fullmatch('[0-9a-f]{40}', parent['sha']) is not None)
+                verification = value.get('verification')
+                _original_r_require(type(verification) is dict
+                                    and all(field in verification for field in
+                                            ('verified', 'reason', 'signature', 'payload'))
+                                    and type(verification.get('verified')) is bool
+                                    and type(verification.get('reason')) is str
+                                    and 0 < len(verification['reason']) <= 128
+                                    and all(verification.get(field) is None
+                                            or type(verification.get(field)) is str
+                                            for field in ('signature', 'payload')))
+                return verification
+
+            transport = api.GitHub()
+            base = '/repos/nold-ai/specfact-cli'
+            repository = metadata(base, 'repository_metadata')
+            _original_r_require(type(repository.get('id')) is int and repository['id'] == 1085706003
+                                and repository.get('full_name') == 'nold-ai/specfact-cli'
+                                and repository.get('name') == 'specfact-cli'
+                                and type(repository.get('owner')) is dict)
+            owner = repository['owner']
+            _original_r_require(type(owner.get('id')) is int and owner['id'] == 225190663
+                                and owner.get('login') == 'nold-ai')
+            parent = metadata(base + '/git/commits/' + C, 'parent_metadata')
+            commit_metadata(parent, C, _ORIGINAL_C_TREE)
+            commit = metadata(base + '/git/commits/' + _ORIGINAL_R, 'commit_metadata')
+            verification = commit_metadata(commit, _ORIGINAL_R, _ORIGINAL_R_TREE)
+            _original_r_require([item['sha'] for item in commit['parents']] == [C]
+                                and verification['verified'] is True and verification['reason'] == 'valid'
+                                and type(verification.get('signature')) is str and verification['signature']
+                                and type(verification.get('payload')) is str and verification['payload'])
+
+            def git(*arguments):
+                clock()
+                children_check()
+                began = time.monotonic_ns()
+                end = min(preparation.deadline_ns - 15_000_000_000, account.deadline_ns - 15_000_000_000,
+                          began + (300 if arguments[0] == 'fetch' else 360) * 1_000_000_000)
+                _original_r_require(began < end)
+                record = _OriginalRGit(('/usr/bin/git', *arguments), began, end)
+                _original_r_require(len(preparation.commands) < 96
+                                    and preparation.metadata_bytes + 65536 <= 8 * MIB
+                                    and account.spent_bytes + 131072 <= 255 * MIB)
+                preparation.commands += (record,)
+                child = None
+                owned = False
+                group_closed = False
+                terminal = None
+                reaped_consistently = False
+                pipes = []
+                chunks = [[], []]
+                sizes = [0, 0]
+                limits = []
+                failure = None
+                clean = False
+                leader_start = None
+                for kind, ceiling in ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
+                                      (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
+                                      (resource.RLIMIT_CORE, 0)):
+                    soft, hard = resource.getrlimit(kind)
+                    hard = ceiling if hard == resource.RLIM_INFINITY else min(hard, ceiling)
+                    soft = hard if soft == resource.RLIM_INFINITY else min(soft, hard)
+                    limits.append((kind, soft, hard))
+
+                def preexec():
+                    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+                    signal.pthread_sigmask(signal.SIG_SETMASK, set())
+                    for kind, soft, hard in limits:
+                        resource.setrlimit(kind, (soft, hard))
+                        if resource.getrlimit(kind) != (soft, hard):
+                            raise RuntimeError('preparation-child-limit')
+                    pid = os.getpid()
+                    if pid <= 1 or os.getpgrp() != pid or os.getsid(0) != pid or time.monotonic_ns() >= end:
+                        raise RuntimeError('preparation-child-context')
+
+                def observe():
+                    nonlocal owned, terminal
+                    _original_r_require(owned)
+                    try:
+                        value = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                    except ChildProcessError:
+                        owned = False
+                        raise
+                    if value is not None and value.si_pid:
+                        current = (value.si_pid, value.si_code, value.si_status)
+                        _original_r_require(value.si_pid == child.pid
+                                            and value.si_code in (os.CLD_EXITED, os.CLD_KILLED, os.CLD_DUMPED)
+                                            and (terminal is None or terminal == current))
+                        terminal = record.waitid = current
+
+                def identity():
+                    nonlocal owned
+                    observe()
+                    try:
+                        valid = child.pid > 1 and os.getpgid(child.pid) == os.getsid(child.pid) == child.pid
+                    except ProcessLookupError:
+                        valid = False
+                    if not valid:
+                        owned = False
+                    _original_r_require(valid)
+
+                def group_empty(deadline):
+                    nonlocal leader_start
+                    identity()
+                    found = False
+                    empty = terminal is not None
+                    visit(deadline)
+                    with os.scandir('/proc') as entries:
+                        while True:
+                            visit(deadline)
+                            entry = next(entries, None)
+                            if entry is None:
+                                break
+                            if not entry.name.isascii() or not entry.name.isdecimal():
+                                continue
+                            _original_r_require(len(entry.name) <= 10)
+                            visit(deadline)
+                            _original_r_require(account.spent_bytes + 3 * 8193 <= 255 * MIB)
+                            descriptor = None
+                            before = account.spent_bytes
+                            try:
+                                with _original_r_registration():
+                                    descriptor = os.open('/proc/' + entry.name + '/stat',
+                                                         os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                                with _original_r_registration():
+                                    raw = os.read(descriptor, 8193)
+                                    account.read_bytes += len(raw)
+                                    charge(3 * len(raw))
+                                _original_r_require(0 < len(raw) <= 8192)
+                                opening, closing = raw.find(b' ('), raw.rfind(b') ')
+                                _original_r_require(opening > 0 and closing > opening)
+                                fields = raw[closing + 2:].split()
+                                _original_r_require(len(fields) >= 20 and fields[0] in (
+                                    b'R', b'S', b'D', b'Z', b'T', b't', b'X', b'x', b'K', b'W', b'P', b'I'))
+                                pid = int(raw[:opening])
+                                group, session, start = int(fields[2]), int(fields[3]), int(fields[19])
+                                _original_r_require(pid == int(entry.name) and min(pid, group, session, start) >= 0)
+                                if pid == child.pid:
+                                    found = True
+                                    _original_r_require(group == session == pid
+                                                        and (leader_start is None or start == leader_start))
+                                    leader_start = start
+                                if group == child.pid:
+                                    _original_r_require(session == child.pid)
+                                    if not (pid == child.pid and terminal is not None and fields[0] == b'Z'):
+                                        empty = False
+                            except FileNotFoundError:
+                                _original_r_require(int(entry.name) != child.pid)
+                            except BaseException:
+                                account.spent_bytes = max(account.spent_bytes, before + 3 * 8193)
+                                raise
+                            finally:
+                                if descriptor is not None:
+                                    os.close(descriptor)
+                    _original_r_require(found)
+                    return empty
+
+                def drain():
+                    if not pipes:
+                        return
+                    ready, _, _ = select.select([pipe.fileno() for _, pipe in pipes], [], [], 0)
+                    for index, pipe in tuple(pipes):
+                        if pipe.fileno() not in ready:
+                            continue
+                        capacity = min(4 * MIB - sizes[index],
+                                       8 * MIB - 65536 - preparation.metadata_bytes)
+                        count = min(65536, capacity + 1)
+                        _original_r_require(count > 0 and account.spent_bytes
+                                            + (len(account.secrets) + 4) * count + 131072 <= 255 * MIB)
+                        with _original_r_registration():
+                            raw = os.read(pipe.fileno(), count)
+                            account.read_bytes += len(raw)
+                            charge((len(account.secrets) + 4) * len(raw))
+                            _original_r_require(len(raw) <= capacity)
+                            if raw:
+                                retain(raw)
+                                chunks[index].append(raw)
+                                sizes[index] += len(raw)
+                        if not raw:
+                            pipe.close()
+                            pipes.remove((index, pipe))
+
+                def group_signal(number):
+                    _original_r_require(not group_closed)
+                    identity()
+                    os.killpg(child.pid, number)
+
+                try:
+                    with _original_r_registration():
+                        child = subprocess.Popen(record.argv, shell=False, close_fds=True, pass_fds=(),
+                                                 start_new_session=True, stdin=subprocess.DEVNULL,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                 env=environment, cwd=root, preexec_fn=preexec)
+                        record.process, record.pid = child, child.pid
+                        owned = True
+                        pipes = list(enumerate((child.stdout, child.stderr)))
+                    identity()
+                    for _, pipe in pipes:
+                        os.set_blocking(pipe.fileno(), False)
+                    while terminal is None:
+                        clock()
+                        _original_r_require(time.monotonic_ns() < end)
+                        drain()
+                        observe()
+                        if terminal is None:
+                            time.sleep(min(.01, max(0, (end - time.monotonic_ns()) / 1_000_000_000)))
+                except BaseException as error:
+                    failure = error
+                finally:
+                    cleanup_start = time.monotonic_ns()
+                    term_end, kill_end, reap_end = (cleanup_start + n * 1_000_000_000 for n in (5, 10, 15))
+                    if child is not None and owned:
+                        for number, phase_end in ((signal.SIGTERM, term_end), (signal.SIGKILL, kill_end)):
+                            try:
+                                _original_r_require(time.monotonic_ns() < phase_end)
+                                try:
+                                    clean = group_empty(phase_end)
+                                except BaseException as error:
+                                    if failure is None:
+                                        failure = error
+                                if clean:
+                                    break
+                                _original_r_require(time.monotonic_ns() < phase_end)
+                                group_signal(number)
+                                while time.monotonic_ns() < phase_end:
+                                    observe()
+                                    if failure is None:
+                                        drain()
+                                    if group_empty(phase_end):
+                                        clean = True
+                                        break
+                                    time.sleep(.02)
+                                if clean:
+                                    break
+                            except BaseException as error:
+                                if failure is None:
+                                    failure = error
+                                if not owned:
+                                    break
+                        # No group operation is permitted after a waitpid attempt, even if a signal loses its result.
+                        group_closed = True
+                        while owned and record.wait_status is None and time.monotonic_ns() < reap_end:
+                            try:
+                                observe()
+                                waited, status = os.waitpid(child.pid, os.WNOHANG)
+                                if waited:
+                                    owned = False
+                                    record.wait_status = status
+                                    child.returncode = os.waitstatus_to_exitcode(status)
+                                    _original_r_require(waited == child.pid and terminal is not None and (
+                                        terminal[1] == os.CLD_EXITED and os.WIFEXITED(status)
+                                        and os.WEXITSTATUS(status) == terminal[2]
+                                        or terminal[1] in (os.CLD_KILLED, os.CLD_DUMPED)
+                                        and os.WIFSIGNALED(status) and os.WTERMSIG(status) == terminal[2]
+                                        and bool(os.WCOREDUMP(status)) == (terminal[1] == os.CLD_DUMPED)))
+                                    reaped_consistently = True
+                                    break
+                            except ChildProcessError as error:
+                                owned = False
+                                if failure is None:
+                                    failure = error
+                            except BaseException as error:
+                                if failure is None:
+                                    failure = error
+                            if owned:
+                                time.sleep(.01)
+                        try:
+                            while pipes and failure is None and time.monotonic_ns() < reap_end:
+                                drain()
+                                if pipes:
+                                    time.sleep(.01)
+                        except BaseException as error:
+                            if failure is None:
+                                failure = error
+                    try:
+                        record.cleanup_complete = clean and reaped_consistently
+                        _original_r_require(record.cleanup_complete and not pipes and failure is None)
+                        output = tuple(b''.join(parts) for parts in chunks)
+                        for raw in output:
+                            sensitive(raw)
+                        record.stdout, record.stderr = output
+                        clock()
+                        _original_r_require(time.monotonic_ns() < end
+                                            and child.returncode == 0)
+                        record.reason = 'complete'
+                    except BaseException as error:
+                        if failure is None:
+                            failure = error
+                    finally:
+                        for _, pipe in pipes:
+                            try:
+                                pipe.close()
+                            except BaseException as error:
+                                record.cleanup_complete = False
+                                if failure is None:
+                                    failure = error
+                        record.ended_ns = time.monotonic_ns()
+                        if failure is not None:
+                            record.reason = ('deadline' if isinstance(failure, Deadline)
+                                             or time.monotonic_ns() >= end else 'incomplete')
+                        before = account.spent_bytes
+                        maximum = 131072 + len(record.stdout) + len(record.stderr)
+                        _original_r_require(before + maximum <= 255 * MIB)
+                        try:
+                            receipt = encoded({'argv': record.argv, 'cwd': str(root), 'environment': environment,
+                                               'started_ns': record.started_ns, 'deadline_ns': record.deadline_ns,
+                                               'ended_ns': record.ended_ns, 'pid': record.pid,
+                                               'waitid': record.waitid, 'wait_status': record.wait_status,
+                                               'cleanup_complete': record.cleanup_complete, 'reason': record.reason,
+                                               'requested_limits': limits,
+                                               'stdout_bytes': len(record.stdout), 'stdout_sha256': sha(record.stdout),
+                                               'stderr_bytes': len(record.stderr), 'stderr_sha256': sha(record.stderr)})
+                            _original_r_require(len(receipt) <= 65536)
+                            with _original_r_registration():
+                                charge(2 * len(receipt) + len(record.stdout) + len(record.stderr))
+                                retain(receipt)
+                                record.receipt = receipt
+                        except BaseException:
+                            account.spent_bytes = max(account.spent_bytes, before + maximum)
+                            raise
+                _original_r_require(failure is None and record.reason == 'complete')
+                return record.stdout
+
+            def config(initial=False):
+                raw = git('config', '--no-includes', '--show-origin', '--show-scope', '--null', '--list')
+                charge(3 * len(raw))
+                if initial:
+                    _original_r_require(raw == b'')
+                    return
+                fields = raw.split(b'\0')
+                _original_r_require(fields.pop() == b'' and len(fields) == 12)
+                values = {}
+                for index in range(0, len(fields), 3):
+                    scope, origin, pair = fields[index:index + 3]
+                    _original_r_require(scope == b'local' and origin in (
+                        b'file:.git/config', b'file:' + os.fsencode(root / '.git/config')))
+                    key, separator, value = pair.partition(b'\n')
+                    _original_r_require(separator and key not in values)
+                    values[key] = value
+                _original_r_require(values == {b'core.repositoryformatversion': b'0', b'core.filemode': b'true',
+                                               b'core.bare': b'false', b'core.logallrefupdates': b'true'})
+
+            def inventory():
+                count = objects = 0
+
+                def walk(descriptor, prefix, depth):
+                    nonlocal count, objects
+                    _original_r_require(depth <= 64)
+                    visit()
+                    with os.scandir(descriptor) as entries:
+                        while True:
+                            visit()
+                            entry = next(entries, None)
+                            if entry is None:
+                                break
+                            count += 1
+                            _original_r_require(count <= 20000)
+                            relative = prefix + entry.name
+                            _original_r_require(len(os.fsencode(relative)) <= 4096)
+                            visit()
+                            value = entry.stat(follow_symlinks=False)
+                            _original_r_require(value.st_size >= 0)
+                            in_git = relative == '.git' or relative.startswith('.git/')
+                            if in_git:
+                                _original_r_require(stat.S_ISDIR(value.st_mode) or stat.S_ISREG(value.st_mode))
+                                _original_r_require(relative not in (
+                                    '.git/info/grafts', '.git/info/sparse-checkout', '.git/info/attributes',
+                                    '.git/objects/info/alternates', '.git/objects/info/http-alternates',
+                                    '.git/config.worktree', '.git/commondir', '.git/gitdir', '.git/index.lock',
+                                    '.git/shallow.lock', '.git/config.lock', '.git/refs/replace', '.git/modules')
+                                    and not relative.startswith('.git/hooks/')
+                                    and not (relative.startswith('.git/refs/') and stat.S_ISREG(value.st_mode)))
+                            _original_r_require(stat.S_ISREG(value.st_mode) or stat.S_ISDIR(value.st_mode)
+                                                or not in_git and stat.S_ISLNK(value.st_mode))
+                            if relative.startswith('.git/objects/') and stat.S_ISREG(value.st_mode):
+                                objects += value.st_size
+                                _original_r_require(objects <= 256 * MIB)
+                            if stat.S_ISDIR(value.st_mode):
+                                owned_descriptor = None
+                                try:
+                                    visit()
+                                    with _original_r_registration():
+                                        owned_descriptor = os.open(entry.name,
+                                            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+                                    walk(owned_descriptor, relative + '/', depth + 1)
+                                finally:
+                                    if owned_descriptor is not None:
+                                        os.close(owned_descriptor)
+
+                walk(preparation.root.descriptor, '', 0)
+                preparation.scans += ((count, objects),)
+
+            def read_file(relative, maximum):
+                clock()
+                parts = relative.split('/')
+                _original_r_require(parts and all(part and part not in ('.', '..') for part in parts))
+                owned_descriptors = []
+                descriptor = preparation.root.descriptor
+                try:
+                    for component in parts[:-1]:
+                        visit()
+                        with _original_r_registration():
+                            descriptor = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                                 dir_fd=descriptor)
+                            owned_descriptors.append(descriptor)
+                    visit()
+                    before = os.stat(parts[-1], dir_fd=descriptor, follow_symlinks=False)
+                    _original_r_require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+                                        and before.st_uid == os.getuid() and 0 <= before.st_size <= maximum)
+                    charge((len(account.secrets) + 4) * (before.st_size + 1))
+                    with _original_r_registration():
+                        opened = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                         dir_fd=descriptor)
+                        owned_descriptors.append(opened)
+                    def identity(value):
+                        return (value.st_dev, value.st_ino, value.st_mode, value.st_uid, value.st_gid,
+                                value.st_nlink, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+                    visit()
+                    _original_r_require(identity(os.fstat(opened)) == identity(before))
+                    with _original_r_registration():
+                        raw = os.read(opened, before.st_size + 1)
+                        account.read_bytes += len(raw)
+                    _original_r_require(len(raw) == before.st_size)
+                    sensitive(raw)
+                    visit()
+                    _original_r_require(identity(os.fstat(opened)) == identity(before))
+                    visit()
+                    _original_r_require(identity(os.stat(parts[-1], dir_fd=descriptor, follow_symlinks=False))
+                                        == identity(before))
+                    clock()
+                    return raw
+                finally:
+                    close_error = None
+                    for descriptor in reversed(owned_descriptors):
+                        try:
+                            os.close(descriptor)
+                        except BaseException as error:
+                            if close_error is None:
+                                close_error = error
+                    if close_error is not None:
+                        raise close_error
+
+            config(initial=True)
+            git('init', '--template=' + str(preparation.template.path), '.')
+            config()
+            git('fetch', '--depth=2', '--no-tags', '--no-recurse-submodules',
+                'https://github.com/nold-ai/specfact-cli.git', _ORIGINAL_R)
+            inventory()
+            config()
+            _original_r_require(read_file('.git/shallow', 41) == (C + '\n').encode())
+            _original_r_require(git('for-each-ref', '--format=%(refname)') == b'')
+            git('fsck', '--full', '--strict', '--no-reflogs')
+            raw_commit = git('cat-file', 'commit', _ORIGINAL_R)
+            charge(5 * len(raw_commit))
+            _original_r_require(sha(raw_commit) == _ORIGINAL_R_RAW)
+            header, separator, message = raw_commit.partition(b'\n\n')
+            _original_r_require(separator)
+            lines = header.split(b'\n')
+            _original_r_require([line[7:] for line in lines if line.startswith(b'parent ')] == [C.encode()]
+                                and lines[0] == b'tree ' + _ORIGINAL_R_TREE.encode())
+            payload_lines, signature_lines = [], []
+            in_signature = False
+            for line in lines:
+                if line.startswith(b'gpgsig '):
+                    _original_r_require(not signature_lines)
+                    signature_lines.append(line[7:])
+                    in_signature = True
+                elif in_signature and line.startswith(b' '):
+                    signature_lines.append(line[1:])
+                else:
+                    in_signature = False
+                    payload_lines.append(line)
+            _original_r_require(b'\n'.join(signature_lines).rstrip(b'\n')
+                                == verification['signature'].encode().rstrip(b'\n')
+                                and b'\n'.join(payload_lines) + b'\n\n' + message
+                                == verification['payload'].encode())
+            _original_r_require(git('rev-parse', C + '^{tree}') == (_ORIGINAL_C_TREE + '\n').encode())
+            _original_r_require(git('rev-parse', _ORIGINAL_R + '^{tree}') == (_ORIGINAL_R_TREE + '\n').encode())
+            git('merge-base', '--is-ancestor', C, _ORIGINAL_R)
+            _original_r_require(git('rev-list', '--reverse', C + '..' + _ORIGINAL_R)
+                                == (_ORIGINAL_R + '\n').encode())
+            _original_r_require(git('rev-list', '--parents', '-n', '1', _ORIGINAL_R)
+                                == (_ORIGINAL_R + ' ' + C + '\n').encode())
+            _original_r_require(git('merge-base', C, _ORIGINAL_R) == (C + '\n').encode())
+            changed = git('diff', '--name-status', '-z', '--find-renames', _ORIGINAL_R + '^', _ORIGINAL_R)
+            charge(3 * len(changed))
+            fields = changed.split(b'\0')
+            _original_r_require(fields.pop() == b'')
+            index = 0
+            while index < len(fields):
+                status = fields[index]
+                index += 1
+                count = 2 if status.startswith((b'R', b'C')) else 1
+                _original_r_require(index + count <= len(fields))
+                for path in fields[index:index + count]:
+                    _original_r_require(path not in (b'pyproject.toml', b'setup.py', b'uv.lock')
+                                        and not path.startswith((b'.github/', b'ci/', b'scripts/', b'src/',
+                                            b'tools/', b'resources/templates/', b'resources/schemas/',
+                                            b'resources/mappings/', b'resources/keys/', b'requirements/',
+                                            b'modules/bundle-mapper/')))
+                index += count
+            tree = git('ls-tree', '-r', '--full-tree', '-z', _ORIGINAL_R)
+            charge(4 * len(tree))
+            tree_entries = {}
+            for line in tree.removesuffix(b'\0').split(b'\0'):
+                fields, separator, path = line.partition(b'\t')
+                mode, kind, object_id = fields.split(b' ')
+                _original_r_require(separator and kind == b'blob' and mode in (b'100644', b'100755', b'120000')
+                                    and re.fullmatch(b'[0-9a-f]{40}', object_id) is not None
+                                    and path not in tree_entries and not path.startswith(b'/')
+                                    and all(part and part not in (b'.', b'..', b'.git') for part in path.split(b'/'))
+                                    and path.rsplit(b'/', 1)[-1] != b'.gitmodules')
+                tree_entries[path] = (mode, object_id)
+            _original_r_require(tree.endswith(b'\0') and len(tree_entries) <= 20000)
+            git('checkout', '--detach', _ORIGINAL_R)
+            inventory()
+            config()
+            _original_r_require(read_file('.git/HEAD', 41) == (_ORIGINAL_R + '\n').encode()
+                                and read_file('.git/shallow', 41) == (C + '\n').encode())
+            _original_r_require(git('rev-parse', 'HEAD') == (_ORIGINAL_R + '\n').encode()
+                                and git('for-each-ref', '--format=%(refname)') == b'')
+            staged = git('ls-files', '--stage', '-z')
+            charge(4 * len(staged))
+            actual_index = {}
+            for line in staged.removesuffix(b'\0').split(b'\0'):
+                fields, separator, path = line.partition(b'\t')
+                mode, object_id, stage = fields.split(b' ')
+                _original_r_require(separator and stage == b'0' and path not in actual_index)
+                actual_index[path] = (mode, object_id)
+            _original_r_require(staged.endswith(b'\0') and actual_index == tree_entries)
+            flags = git('ls-files', '-v', '-z')
+            charge(3 * len(flags))
+            _original_r_require(flags.endswith(b'\0') and all(line.startswith(b'H ')
+                for line in flags[:-1].split(b'\0')))
+            git('diff', '--cached', '--exit-code', '--no-ext-diff', '--no-textconv', _ORIGINAL_R, '--')
+            git('diff-files', '--exit-code', '--no-ext-diff', '--no-textconv', '--')
+            _original_r_require(git('status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching') == b'')
+            for path, digest in _ORIGINAL_R_SOURCES:
+                _original_r_require(os.fsencode(path) in tree_entries
+                                    and tree_entries[os.fsencode(path)][0] in (b'100644', b'100755'))
+                blob = git('cat-file', 'blob', _ORIGINAL_R + ':' + path)
+                source = read_file(path, 4 * MIB)
+                charge(3 * len(blob))
+                _original_r_require(blob == source and sha(blob) == sha(source) == digest)
+            inventory()
+            _owned_root_check(account)
+            children_check()
+            clock()
+            result = _PreparedOriginalR(root, account.root.path, preparation.home.path, preparation.tmp.path,
+                                        _ORIGINAL_R, C, _ORIGINAL_R_TREE, _ORIGINAL_C_TREE,
+                                        _ORIGINAL_R_RAW, _ORIGINAL_R_SOURCES)
+        _original_r_require(not timer.expired and not timer.pending
+                            and time.monotonic_ns() < preparation.deadline_ns
+                            and time.monotonic_ns() < account.deadline_ns)
+        preparation.complete = True
+        return result
+    except BaseException:
+        if type(account) is _AttemptAccount:
+            account.stopped = True
+            if type(account.preparation) is _OriginalRPreparation:
+                account.preparation.complete = False
+        raise _OriginalRPreparationError('Original R preparation refused') from None
 
 
 
