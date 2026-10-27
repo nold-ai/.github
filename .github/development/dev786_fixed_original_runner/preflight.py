@@ -1662,14 +1662,17 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
             clock_check()
             identity()
             clean = group_empty(term_end)
+            scan_due = time.monotonic() + 0.5
             if not clean:
                 signal_group(signal.SIGTERM)
                 while time.monotonic() < term_end:
                     observe()
                     drain(term_end)
-                    if group_empty(term_end):
-                        clean = True
-                        break
+                    if time.monotonic() >= scan_due:
+                        clean = group_empty(term_end)
+                        scan_due = time.monotonic() + 0.5
+                        if clean:
+                            break
                     pause(term_end)
         except BaseException as error:
             if not (type(error) is _OriginalRowRefusal and error.args == ('cleanup',)
@@ -1681,12 +1684,15 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                 if time.monotonic() >= kill_end:
                     refuse('cleanup')
                 signal_group(signal.SIGKILL)
+                scan_due = time.monotonic()
                 while not failed and time.monotonic() < kill_end:
                     observe()
                     drain(kill_end)
-                    if group_empty(kill_end):
-                        clean = True
-                        break
+                    if time.monotonic() >= scan_due:
+                        clean = group_empty(kill_end)
+                        scan_due = time.monotonic() + 0.5
+                        if clean:
+                            break
                     pause(kill_end)
             except BaseException as error:
                 failed = True

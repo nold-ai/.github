@@ -126,3 +126,10 @@ Execution is not authorized by this draft. The existing authenticated Ubuntu bas
 
 
 Accepted test-review corrections. Expired preexec starts with two seconds of account allowance. Its real child waits to that absolute deadline and retains expired-before-original and returned flags, so a parent-only refusal cannot satisfy the oracle. Both proc descriptor trackers remove ownership only after delegated close succeeds, assert emptiness before fallback, and independently close retained owned descriptors in finally while preserving the first failure. These are the two prescribed finite TEST fixes, with no additional matrix or runtime authority.
+
+
+## Bounded cleanup inspection cadence
+
+Actual targeted Ubuntu run40599673368 retained metadata_visits20000 before the five-second TERM phase completed. The leader-first refusal explicitly reports budget; the KILL case retains its earlier deadline reason while the same metadata cap is exhausted. Preserve that real failure evidence and every existing assertion.
+
+Cleanup continues direct wait observations, pipe handling and original Timer checks at the existing bounded polling cadence. A complete global proc scan happens initially, then at most once per half second while waiting in a phase, and once immediately after SIGKILL before the KILL waiting cadence. Scheduling the next inspection never changes TERM/KILL/reap endpoints fixed at cleanup start plus5/10/15seconds, restarts an owner clock, refunds work or grows any cap. A successful return still requires an actual complete group scan and exact direct reap. Unknown scans, metadata exhaustion, ownership loss and any matching nonleader Z remain refusals. All performed visits and bytes retain their existing charges. This removes redundant observations, rather than discarding failures or weakening cleanup.
