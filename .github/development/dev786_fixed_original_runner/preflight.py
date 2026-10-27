@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1328,6 +1328,100 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
 
 class _SourceRole(Enum):
     PLAN = 'plan.json'
+    PLANNING_REPORT = 'planning-report.json'
+    PLANNING_SUMMARY = 'planning-summary.md'
+    JUNIT = 'requirements-proof.xml'
+    REPORT = 'local-red-report.json'
+    UNBOUND_REPORT = 'local-red-unbound-report.json'
+    RED_SUMMARY = 'local-red-summary.md'
+
+
+class _OriginalPhase(Enum):
+    NEW = 'new'
+    PREPARED = 'prepared'
+    IN_ROWS = 'in_rows'
+    LIVE_COMPLETE = 'live_complete'
+    UNWOUND = 'unwound'
+    CLOSED = 'closed'
+    FAILED = 'failed'
+
+
+class _OwnerState(Enum):
+    NOT_STARTED = 'not_started'
+    RETURNED = 'returned'
+    RAISED = 'raised'
+
+
+@dataclass(frozen=True)
+class _OwnerOutcome:
+    state: _OwnerState
+    value: bool | None
+    error: BaseException | None
+
+
+@dataclass(frozen=True)
+class _Junit15Facts:
+    selectors: tuple[str, ...]
+    failures: int
+    errors: int
+    passes: int
+    skips: int
+    toolchain: tuple[tuple[str, str], ...]
+
+
+@dataclass
+class _OriginalProducts:
+    plan: _CompleteOwnedRead | None = None
+    planning_report: _CompleteOwnedRead | None = None
+    planning_summary: _CompleteOwnedRead | None = None
+    junit: _CompleteOwnedRead | None = None
+    junit_facts: _Junit15Facts | None = None
+    unbound_report: _CompleteOwnedRead | None = None
+    red_summary: _CompleteOwnedRead | None = None
+    bound_report: _CompleteOwnedRead | None = None
+
+
+@dataclass(frozen=True)
+class _BoundaryFacts:
+    policy_main: str
+    policy_parents: tuple[str, str]
+    policy_tree: str
+    core_main: str
+    core_dev: str
+
+
+@dataclass(frozen=True)
+class _OriginalJoinFacts:
+    integrity_complete: bool
+    collector_plus_export_read_bytes: int
+    payload_bytes: int
+    files: tuple[tuple[str, int, str], ...]
+
+
+@dataclass(frozen=True)
+class _RootCleanup:
+    role: str
+    attempted: bool
+    descriptor_closed: bool
+    deleted: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class _Original15Packet:
+    complete: bool
+    outcome: str
+    cleanup: tuple[_RootCleanup, ...]
+    diagnostics: tuple[str, ...]
+    export_path: Path | None
+
+
+class _OriginalProofError(RuntimeError):
+    pass
+
+
+class _OriginalProofNotImplemented(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -1355,6 +1449,24 @@ class _AttemptAccount:
     stream_bytes: int = 0
     retained_stream_bytes: int = 0
     last_direct: _DirectResult | None = None
+    preparation: _OriginalRPreparation | None = None
+    policy: Path | None = None
+    original_output: Path | None = None
+    export_path: Path | None = None
+    phase: _OriginalPhase = _OriginalPhase.NEW
+    products: _OriginalProducts = field(default_factory=_OriginalProducts)
+    boundary_before: _BoundaryFacts | None = None
+    boundary_after: _BoundaryFacts | None = None
+    old_join: _OriginalJoinFacts | None = None
+    live_entered: bool = False
+    live_complete: bool = False
+    unwound: bool = False
+    final_started_ns: int | None = None
+    final_deadline_ns: int | None = None
+    finish_started: bool = False
+    finish_complete: bool = False
+    final_packet: _Original15Packet | None = None
+    primary_error: BaseException | None = None
 
 
 @dataclass(frozen=True)
@@ -1520,6 +1632,62 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
             if admitted:
                 account.spent_bytes += admitted
         raise _OwnedReadError('Owned read refused') from None
+
+
+@dataclass
+class _OriginalRChild:
+    path: Path
+    created: bool = False
+    descriptor: int | None = None
+    device: int | None = None
+    inode: int | None = None
+    uid: int | None = None
+    mode: int | None = None
+
+
+@dataclass
+class _OriginalRPreparation:
+    started_ns: int
+    deadline_ns: int
+    root: _OriginalRChild | None = None
+    home: _OriginalRChild | None = None
+    tmp: _OriginalRChild | None = None
+    template: _OriginalRChild | None = None
+    repository_metadata: bytes | None = None
+    parent_metadata: bytes | None = None
+    commit_metadata: bytes | None = None
+    complete: bool = False
+
+
+@dataclass(frozen=True)
+class _PreparedOriginalR:
+    root: Path
+    out: Path
+    home: Path
+    tmp: Path
+    commit: str
+    parent: str
+    tree: str
+    parent_tree: str
+    raw_commit_sha256: str
+    sources: tuple[tuple[str, str], ...]
+
+
+class _OriginalRPreparationError(RuntimeError):
+    pass
+
+
+class _OriginalRNotImplemented(RuntimeError):
+    pass
+
+
+def _prepare_original_r(account, api):
+    raise _OriginalRNotImplemented('NEW original R preparation is not implemented')
+
+
+
+def _original15(account, prepared, tool, timer):
+    raise _OriginalProofNotImplemented('NEW fixed original15 proof and join is not implemented')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,522 @@
+{
+  "label": "Synthetic parser fixture and fixed source contract. Never native authority.",
+  "source33": [
+    [
+      "P",
+      ".github/scripts/native_requirements_bootstrap.py",
+      "41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4"
+    ],
+    [
+      "P",
+      ".github/scripts/native_requirements_acquisition.py",
+      "eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe"
+    ],
+    [
+      "P",
+      ".github/scripts/late_cycle_admission.py",
+      "57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64"
+    ],
+    [
+      "P",
+      ".github/scripts/native_requirements_materialization.py",
+      "029634a7336e5738a369cd1f2a5cbbf1bda1595cfd6564c043c77aceecb0e4bf"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/build-locked.txt",
+      "928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/build-requirements.in",
+      "d419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/locked.txt",
+      "a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/requirements.in",
+      "fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/tool-files.json",
+      "969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad"
+    ],
+    [
+      "P",
+      ".github/native-tools/dev786/runtime.json",
+      "7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f"
+    ],
+    [
+      "R",
+      "tests/unit/scripts/test_dependency_compatibility_workflow.py",
+      "416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa"
+    ],
+    [
+      "R",
+      "tests/unit/scripts/test_dependency_trust_review.py",
+      "bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac"
+    ],
+    [
+      "R",
+      "tests/unit/scripts/test_security_audit_gate.py",
+      "5100ceaa78a4381b8565f5a3c996e8d8b15ceda44d18de9ebcf04eb0561f81a3"
+    ],
+    [
+      "R",
+      "tests/unit/security/test_frozen_gitpython_compatibility.py",
+      "c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af"
+    ],
+    [
+      "R",
+      "tests/unit/security/test_release_dependency_selection.py",
+      "f713acdfeba8235bd5f7e2c22b7a29585d61693798972b6e9a24a31423e7a4e6"
+    ],
+    [
+      "R",
+      "scripts/requirements_proof_pytest_plugin.py",
+      "31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8"
+    ],
+    [
+      "R",
+      "openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml",
+      "6a1f812cc9a0be0adf260cdfb48dda0a5af3c41b5827259459373123861e9e20"
+    ],
+    [
+      "R",
+      "openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json",
+      "a5664876536b22616c93489ceb4baacd9ba07515f83216e2441289aaf3606707"
+    ],
+    [
+      "R",
+      "requirements/ci/locked.txt",
+      "0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266"
+    ],
+    [
+      "R",
+      "uv.lock",
+      "850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7"
+    ],
+    [
+      "C",
+      "src/specfact_cli/cli.py",
+      "191b16df14c9875a4f265ed5a6c86f3d3e9888780930cb0ab7b944f7865cac00"
+    ],
+    [
+      "C",
+      "src/specfact_cli/registry/module_packages.py",
+      "ee47ead2c731d80888f18fa604c3193c54cf43dc7c1513c08fd54063b78e8b9b"
+    ],
+    [
+      "C",
+      "scripts/requirements_proof_executor.py",
+      "1217ad0a1dcee26818c47e68019cb6ce11e2d700d83a260d197c8fbb1c0403bd"
+    ],
+    [
+      "C",
+      "scripts/requirements_proof_provenance.py",
+      "5bad94f58f6741cd070e6e9f98a95c88d412365a437e0499e30545603cd9f846"
+    ],
+    [
+      "C",
+      "scripts/requirements_proof_pytest_plugin.py",
+      "31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8"
+    ],
+    [
+      "C",
+      "ci/module-fixture.lock.json",
+      "f6ce6abcbe24d27b3f2b3596d5533650198afc61e00de1c662faf7d239679de0"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/module-package.yaml",
+      "385ccff7adca9639188ce80185456d66b5e3ab90973b02c6f230eef271d1c412"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/__init__.py",
+      "1dd57eb29db513d20619506a9eac55b0f2427a51163113857721159e853ce158"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/requirements/__init__.py",
+      "8838258e7a346f9c9006d9ae211aa053b2bd4424827d5e821a7d758864da07f7"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/requirements/app.py",
+      "74ac669cb34e040bb6d286ad0d05fdd3dcd014dd0ce99ca3dd5a7957d879de12"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/requirements/commands.py",
+      "65350ba69469798ccfd07587e979c3ca1b9c61382dd42ae27f7a02cbe4ba96db"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/requirements/evidence.py",
+      "f5a34c6fa21d6d1c6428d54da1a9b6ce61bee6d2c2d8d190a8751a7eca25bc3e"
+    ],
+    [
+      "M",
+      "packages/specfact-requirements/src/specfact_requirements/requirements/lifecycle.py",
+      "9352b1acde9f520e577657b5812e9b129a8b018ddd76113684b829e7b395d654"
+    ]
+  ],
+  "cases15": [
+    {
+      "case_id": "DEV-OTEL-EXACT-CVE",
+      "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]",
+      "file": "tests/unit/scripts/test_security_audit_gate.py",
+      "line": 272,
+      "classname": "tests.unit.scripts.test_security_audit_gate",
+      "name": "test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]",
+      "markers": [
+        "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+        "AssertionError: assert 1 == 0"
+      ]
+    },
+    {
+      "case_id": "DEV-OTEL-EXACT-GHSA",
+      "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]",
+      "file": "tests/unit/scripts/test_security_audit_gate.py",
+      "line": 272,
+      "classname": "tests.unit.scripts.test_security_audit_gate",
+      "name": "test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]",
+      "markers": [
+        "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+        "AssertionError: assert 1 == 0"
+      ]
+    },
+    {
+      "case_id": "DEV-OTEL-EXPIRY-DAY",
+      "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]",
+      "file": "tests/unit/scripts/test_security_audit_gate.py",
+      "line": 272,
+      "classname": "tests.unit.scripts.test_security_audit_gate",
+      "name": "test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]",
+      "markers": [
+        "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+        "AssertionError: assert 1 == 0"
+      ]
+    },
+    {
+      "case_id": "DEV-FLOOR-GITPYTHON",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[gitpython-floor]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 61,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_public_declarations_require_reviewed_security_floor[gitpython-floor]",
+      "markers": [
+        "assert requirement in project[\"project\"][\"dependencies\"]",
+        "gitpython>=3.2.1"
+      ]
+    },
+    {
+      "case_id": "DEV-FLOOR-PYCPARSER",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[pycparser-floor]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 61,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_public_declarations_require_reviewed_security_floor[pycparser-floor]",
+      "markers": [
+        "assert requirement in project[\"project\"][\"dependencies\"]",
+        "pycparser>=3.12,!=3.0.*"
+      ]
+    },
+    {
+      "case_id": "DEV-ADVISORY-SELECTION",
+      "selector": "tests/unit/scripts/test_dependency_compatibility_workflow.py::test_resolver_selection_excludes_only_frozen_release_cases",
+      "file": "tests/unit/scripts/test_dependency_compatibility_workflow.py",
+      "line": 97,
+      "classname": "tests.unit.scripts.test_dependency_compatibility_workflow",
+      "name": "test_resolver_selection_excludes_only_frozen_release_cases",
+      "markers": [
+        "assert len(deselections) == len(FROZEN_RELEASE_SELECTORS) + 2",
+        "AssertionError: assert 2 == (7 + 2)"
+      ]
+    },
+    {
+      "case_id": "DEV-GIT-CREATE-ABSOLUTE-METADATA",
+      "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[absolute-metadata]",
+      "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+      "line": 166,
+      "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+      "name": "test_submodule_creation_validates_checkout_before_clone[absolute-metadata]",
+      "markers": [
+        "assert result == {",
+        "{'clone_calls': 1} != {'clone_calls': 0}",
+        "{'boundary_reached': True} != {'boundary_reached': False}",
+        "{'rejected': False} != {'rejected': True}"
+      ]
+    },
+    {
+      "case_id": "DEV-GIT-CREATE-GIT-METADATA",
+      "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-metadata]",
+      "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+      "line": 166,
+      "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+      "name": "test_submodule_creation_validates_checkout_before_clone[git-metadata]",
+      "markers": [
+        "assert result == {",
+        "{'clone_calls': 1} != {'clone_calls': 0}",
+        "{'boundary_reached': True} != {'boundary_reached': False}",
+        "{'rejected': False} != {'rejected': True}"
+      ]
+    },
+    {
+      "case_id": "DEV-GIT-CREATE-GIT-SHORT-NAME",
+      "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-short-name]",
+      "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+      "line": 166,
+      "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+      "name": "test_submodule_creation_validates_checkout_before_clone[git-short-name]",
+      "markers": [
+        "assert result == {",
+        "{'clone_calls': 1} != {'clone_calls': 0}",
+        "{'boundary_reached': True} != {'boundary_reached': False}",
+        "{'rejected': False} != {'rejected': True}"
+      ]
+    },
+    {
+      "case_id": "DEV-PARSER-EXACT-REVIEW",
+      "selector": "tests/unit/scripts/test_dependency_trust_review.py::test_pycparser_has_current_exact_version_review_record",
+      "file": "tests/unit/scripts/test_dependency_trust_review.py",
+      "line": 49,
+      "classname": "tests.unit.scripts.test_dependency_trust_review",
+      "name": "test_pycparser_has_current_exact_version_review_record",
+      "markers": [
+        "assert pycparser[\"version\"] == \"3.12\"",
+        "assert '2.22' == '3.12'"
+      ]
+    },
+    {
+      "case_id": "DEV-PIN-GITPYTHON",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 32,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]",
+      "markers": [
+        "assert packages[0][\"version\"] == version",
+        "assert '3.2.0' == '3.2.1'"
+      ]
+    },
+    {
+      "case_id": "DEV-PIN-PACKAGING",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 32,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]",
+      "markers": [
+        "assert packages[0][\"version\"] == version",
+        "assert '26.2' == '26.3'"
+      ]
+    },
+    {
+      "case_id": "DEV-PIN-PYCPARSER",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 32,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]",
+      "markers": [
+        "assert packages[0][\"version\"] == version",
+        "assert '2.22' == '3.12'"
+      ]
+    },
+    {
+      "case_id": "DEV-PIN-PYTHON-DISCOVERY",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 32,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]",
+      "markers": [
+        "assert packages[0][\"version\"] == version",
+        "assert '1.6.0' == '1.6.1'"
+      ]
+    },
+    {
+      "case_id": "DEV-PIN-VIRTUALENV",
+      "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]",
+      "file": "tests/unit/security/test_release_dependency_selection.py",
+      "line": 32,
+      "classname": "tests.unit.security.test_release_dependency_selection",
+      "name": "test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]",
+      "markers": [
+        "assert packages[0][\"version\"] == version",
+        "assert '21.11.0' == '21.14.12'"
+      ]
+    }
+  ],
+  "fixture_files": {
+    "plan.json": {
+      "bytes": 21104,
+      "sha256": "8d24130f0cb8bfb70bd9f6d157b646cad15a210af3b93609b64582bf11d53900"
+    },
+    "planning-report.json": {
+      "bytes": 22050,
+      "sha256": "7da297b8feb57bb9b813f6b5336d9bfa0d8a3303e7dcb61b8613619ead4d4fbb"
+    },
+    "planning-summary.md": {
+      "bytes": 246,
+      "sha256": "ac18b7e3bffe9fb9d4c9f6066048588f6bb7e39cbce2188e4725a1ace8b4c7d4"
+    },
+    "requirements-proof-network.xml": {
+      "bytes": 43721,
+      "sha256": "793f74790ec3c7b4fe765611aa1f6aeae2243c85c9e78a50f5344b4431a9f8ae"
+    },
+    "requirements-proof.xml": {
+      "bytes": 53232,
+      "sha256": "aa814ea90c4e4275c9eb980e0eb62220be80cf74ad953680df9c0121cca1d830"
+    },
+    "local-red-unbound-report.json": {
+      "bytes": 43794,
+      "sha256": "ce35ea011fb148bf657a1b7a13e7177ab1ca5c3235cdc84f917d873f0b181bb3"
+    },
+    "local-red-report.json": {
+      "bytes": 44759,
+      "sha256": "fbf4e54ba1e637f03813c099009cfa64e8bd8fdbce04c3c75c58613df6cbcff1"
+    },
+    "local-red-summary.md": {
+      "bytes": 161,
+      "sha256": "c17464b8cc296613896045b3cc80121f4c9f783b3f6c42dc207738769d8db8ae"
+    }
+  },
+  "native_toolchain": {
+    "runner": "pytest",
+    "python": "3.12.15",
+    "pytest": "9.1.1"
+  },
+  "historical_toolchain": {
+    "runner": "pytest",
+    "python": "3.12.13",
+    "pytest": "9.1.1"
+  },
+  "policy_main": "640549e62fb3ca001499e71d4cf935aa8c0a0192",
+  "policy_parents": [
+    "9f952f1bc591b9d58403a8a362ce9fe21fdfe47d",
+    "46a4f141de4497c1f46a6114683308fd6f3b2525"
+  ],
+  "policy_tree": "2d27c800651b3e1b30d46078594a61937410f4cc",
+  "core_main": "5262efb0881e4fac7697d629b0530250342bc656",
+  "core_dev": "9b5ad1e78430cc0b061cb16de42f73de96f4f312",
+  "helper_sha256": "57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64",
+  "original_owners": {
+    "sha": {
+      "bytes": 57,
+      "sha256": "2f1541faf4c4ebe2f74c17d4b666982327a0f1e144708a531c92f08669705d57"
+    },
+    "encoded": {
+      "bytes": 116,
+      "sha256": "acd55c960b2ee570b32f0e39d2c9d4d5fe4983f520a4e9481c5067b32030cb31"
+    },
+    "require": {
+      "bytes": 87,
+      "sha256": "c1cef020f08ebd4aafc4b923942e1bd6485d9b32f6eccd4deecff6961fd88208"
+    },
+    "frozen_inputs": {
+      "bytes": 505,
+      "sha256": "081d5c85716afe11ff7b3b4a8b5effcdea2a07f8615231ee4c5e19bec50fc85f"
+    },
+    "load_policy": {
+      "bytes": 1590,
+      "sha256": "4c9aa904adb780a91b115bba3b940ac7cd08b9759868c927e327b72cc9385a9c"
+    },
+    "fixtures": {
+      "bytes": 249,
+      "sha256": "307b3443da527accc85ec0f437f2fbea470af9f33c0adedd8c1f87467651115a"
+    },
+    "Deadline": {
+      "bytes": 39,
+      "sha256": "fe290a1b7982f6cee8bd2fa3f7fb2e144274fb466fcd7472837d085f44d72add"
+    },
+    "command_cleanup": {
+      "bytes": 2531,
+      "sha256": "512409d24ed6d2343b4fed9e58ad5521cdc31ce6dadb4949ae3b6b43a48eca92"
+    },
+    "Timer": {
+      "bytes": 2216,
+      "sha256": "8a3741836a32410ad9d52c8ba16ceb25742b0fbeae4e7fd4cfe813712e6cb80a"
+    },
+    "schedule": {
+      "bytes": 1220,
+      "sha256": "9d8dd8234981048c58ef1ee6675910e1fc3e36bcbb71722e5cb76438416b41b0"
+    },
+    "Transcript": {
+      "bytes": 2771,
+      "sha256": "71bd59f16877d0f49369d12fad0f65a135b4852f4011baddaf9758b1c439bf49"
+    },
+    "expected": {
+      "bytes": 244,
+      "sha256": "04cb62541bb3931bcc7b3900cfada1891f43f3c9fac44bc2b84547aecfeadd25"
+    },
+    "exception_facts": {
+      "bytes": 1077,
+      "sha256": "6e95490c44a807db393d505198affbd0de886b23a7f74369390fb2926ed7ba42"
+    },
+    "Evidence": {
+      "bytes": 10969,
+      "sha256": "498891738adc1344854f1f982a4f039319db6a33ba45d08a951bb58ec3b5317e"
+    },
+    "cleanup_observer": {
+      "bytes": 2403,
+      "sha256": "cb80841ea29d644150964fd0a2fedca094dc7debee77269332f1c4e1eec211f2"
+    },
+    "adapter_controls": {
+      "bytes": 1806,
+      "sha256": "f5a268bb301539bfd64abd3cf6938e294460fe2b4805f6efec6326c6cb57b95d"
+    },
+    "cleanup_signal_control": {
+      "bytes": 11700,
+      "sha256": "5532591ee5d88d9bfe8858d7e8f1ac085ee33c55d4bae5da40ccca13e4b6431f"
+    },
+    "cleanup_controls": {
+      "bytes": 6415,
+      "sha256": "d15fc8da0b6bcf8321f9b73835de0411f395521a2ef50c5e091a2d7d47ce9051"
+    },
+    "acquisition_negatives": {
+      "bytes": 1867,
+      "sha256": "cd6360609fa78095d8628f533c271135960d6b21c4c2182aab893d2861fca317"
+    },
+    "restored_acquisition": {
+      "bytes": 2215,
+      "sha256": "6a8c12cb0b4605a228c542472338f5138606edc9955d6ab521584d7e9252f296"
+    },
+    "tool_facts": {
+      "bytes": 2138,
+      "sha256": "a30eb9afa4c5c029a5b2ebe7538b6b771dc8bd485084db573176d0a0954845da"
+    },
+    "actual": {
+      "bytes": 5447,
+      "sha256": "64983d574bbef15a95e890a0127f56cd021869ab5d91086d68a4995f0e91a48e"
+    },
+    "creation_control": {
+      "bytes": 1616,
+      "sha256": "eebfe843ba254346676ba71fd7c3ee2914a76b0505e1a87a007af7ff934484b3"
+    },
+    "export_bytes": {
+      "bytes": 679,
+      "sha256": "9165a82163a2654126c3578f4a616ab79aa07ef72a678862e11aa35f1c2c71df"
+    },
+    "publish_safe": {
+      "bytes": 3931,
+      "sha256": "69d120776277e14d08efc73350d35170cf8031d93d8b9d9fb46a3690f8fc4fb9"
+    },
+    "main": {
+      "bytes": 2237,
+      "sha256": "81827aabcac9ed2c2f6df6abf7410de39118b56424a3184165dbe17e0fedc1b9"
+    }
+  },
+  "baseline": {
+    "bytes": 77699,
+    "sha256": "e436751e548d4b18bbb41b6e71b70bca87faa68e665a84b6932aaf4fbb4f39a8"
+  },
+  "canonical_unbound_comparison_sha256": "245a767e3054d1fbfe0a05c533be971d6adccb309fd330904554831a20a57690"
+}
