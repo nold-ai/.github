@@ -501,6 +501,52 @@ def cleanup_direct_children(children, setup):
     return issues
 
 
+def _row_diagnostic(setup, case_id):
+    account, unused, paths = setup
+    result = account.last_direct
+    record = {'claim': 'UNCLASSIFIED CONTROL SNAPSHOT BEFORE OUTER CLEANUP', 'case': case_id,
+              'account': {name: getattr(account, name) for name in (
+                  'metadata_visits', 'read_bytes', 'spent_bytes', 'retained_bytes',
+                  'retained_members', 'stream_bytes', 'retained_stream_bytes', 'row_seconds', 'stopped')}}
+    if result is not None:
+        record['direct'] = {name: getattr(result, name) for name in (
+            'pid', 'reason', 'cleanup_complete', 'deadline_seen', 'waitid', 'wait_status')}
+        record['direct'].update(stage=result.stage.value, elapsed=result.ended-result.started,
+                                stdout_bytes=len(result.stdout), stderr_bytes=len(result.stderr))
+    marker = paths.home / 'descendant'
+    if marker.exists():
+        descriptor = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            number = os.read(descriptor, 33)
+        finally:
+            os.close(descriptor)
+        if len(number) > 32 or not number.isdigit() or not 1 < int(number) < 2**31:
+            raise ValueError('diagnostic descendant marker')
+        try:
+            descriptor = os.open('/proc/' + number.decode('ascii') + '/stat',
+                                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except FileNotFoundError:
+            record['descendant'] = {'pid': int(number), 'observation': 'absent'}
+        else:
+            try:
+                raw = os.read(descriptor, 8193)
+            finally:
+                os.close(descriptor)
+            opening, closing = raw.find(b' ('), raw.rfind(b')')
+            if len(raw) > 8192 or opening < 1 or closing <= opening:
+                raise ValueError('diagnostic stat shape')
+            fields = raw[closing+2:].split()
+            if len(fields) < 20 or int(raw[:opening]) != int(number):
+                raise ValueError('diagnostic stat fields')
+            record['descendant'] = {'pid': int(number), 'state': fields[0].decode('ascii'),
+                                    'parent': int(fields[1]), 'group': int(fields[2]),
+                                    'session': int(fields[3]), 'starttime': int(fields[19])}
+    raw = json.dumps(record, sort_keys=True)
+    if len(raw.encode()) > 4096:
+        raise ValueError('diagnostic record bound')
+    print(raw)
+
+
 class FixedRows(unittest.TestCase):
     def invoke_linux(self, body):
         if sys.platform != 'linux':
@@ -523,6 +569,14 @@ class FixedRows(unittest.TestCase):
                 primary = error
                 raise
             finally:
+                diagnostic_error = None
+                try:
+                    _row_diagnostic(setup, self.id())
+                except BaseException as error:
+                    if primary is None:
+                        primary = diagnostic_error = error
+                    else:
+                        primary.add_note('bounded diagnostic failed: ' + type(error).__name__)
                 old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
                 try:
                     try:
@@ -544,6 +598,8 @@ class FixedRows(unittest.TestCase):
                         if primary is None:
                             raise
                         primary.add_note('outer mask restoration failed: ' + type(restoration_error).__name__)
+                if diagnostic_error is not None:
+                    raise diagnostic_error
 
     def test_exact_four_vectors_are_passive_and_immutable(self):
         test_exact_four_vectors_are_passive_and_immutable()
