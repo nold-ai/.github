@@ -1,0 +1,35 @@
+{
+  "sha": "4ae6175a4d337296d0347e73b66c9da1f0e43f7f",
+  "node_id": "C_kwDOQLaPE9oAKDRhZTYxNzVhNGQzMzcyOTZkMDM0N2U3M2I2NmM5ZGExZjBlNDNmN2Y",
+  "url": "https://api.github.com/repos/nold-ai/specfact-cli/git/commits/4ae6175a4d337296d0347e73b66c9da1f0e43f7f",
+  "html_url": "https://github.com/nold-ai/specfact-cli/commit/4ae6175a4d337296d0347e73b66c9da1f0e43f7f",
+  "author": {
+    "name": "github-actions[bot]",
+    "email": "41898282+github-actions[bot]@users.noreply.github.com",
+    "date": "2026-10-26T00:11:52Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-10-26T00:11:52Z"
+  },
+  "tree": {
+    "sha": "baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e",
+    "url": "https://api.github.com/repos/nold-ai/specfact-cli/git/trees/baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e"
+  },
+  "message": "test(security): scope dev 0.55.11 regressions\n\nIntent: bd2ec93898ade801a4bb697d388fe1de0c28617fb570649dc79e5648ab98bee4\nExecutor: 26a3384bd1db00643bef5df189c42224b0033476\nRun: 40248154362\nAttempt: 1",
+  "parents": [
+    {
+      "sha": "9b5ad1e78430cc0b061cb16de42f73de96f4f312",
+      "url": "https://api.github.com/repos/nold-ai/specfact-cli/git/commits/9b5ad1e78430cc0b061cb16de42f73de96f4f312",
+      "html_url": "https://github.com/nold-ai/specfact-cli/commit/9b5ad1e78430cc0b061cb16de42f73de96f4f312"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq3prJCRC1aQ7uu5UhlAAALP0QAG5W55OU1065+lY+VfAc1qFJ\n+Oi9hSC39JSJiDyTe1xcOGMTP2RwhbM4tRBC5QL9uaj9fXMDhQKKkic3JMZ5lJfR\n0CmPzIxv8pw7JFV0Kn+RxrQL2NBcnFOyOQA0SI9c0aT/Im8f6VUZ81ncv6+kht78\n1UEeaX7q4yNtUdtiiMewbOsF0Yt/wAvVZaywKK5qjrh8zsWdEUobD3S0JPg1gYv4\nMgnLFI09UiOk+6cdlhXPyHgTssKqgANH9Ov+a+WwlDGoiU/Ut7z/nytEfVGMFmQo\n6aDjBOExlAbAciMTCuoYiCITsiGEApvPRKJuWWgIJNYbT0mASSpIVZVYZUJ7p4iD\nvkdoNEE20S9eArdhK4KTwgbynkImjLFfZuvA6EQmd0hdj/qtPLxVXOpyLTgm4CLP\n/b0LlqAZfRjRMlVhJrojA3u9MQI9fS4eU1qT6z6Knx66UnOiPDu9E3gyYNmdGHUP\njeAI4n0DnB1too1tkDmseqSNoRhDheI1cDuzDt9sUGfBOlPfc0dvNwY1cjY9vvUB\n+bbsvXsDSyCvNJyRZHC1+RIvkagRXxQDDY+mXfYBMuTbWW2nED2qJtkJovEzyK1u\nQiiG8FCrNDfCF8XnRkBrpUl0AS+tJ60eL3Uo11tqjHxBjCl4MG0j4UNkPB+gb5A0\n3NG3U+xcPYLVkY/T7r4L\n=xLlM\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e\nparent 9b5ad1e78430cc0b061cb16de42f73de96f4f312\nauthor github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com> 1792973512 +0000\ncommitter GitHub <noreply@github.com> 1792973512 +0000\n\ntest(security): scope dev 0.55.11 regressions\n\nIntent: bd2ec93898ade801a4bb697d388fe1de0c28617fb570649dc79e5648ab98bee4\nExecutor: 26a3384bd1db00643bef5df189c42224b0033476\nRun: 40248154362\nAttempt: 1",
+    "verified_at": "2026-10-26T00:11:53Z"
+  }
+}

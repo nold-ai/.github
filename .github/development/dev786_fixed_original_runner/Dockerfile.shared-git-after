@@ -1,0 +1,5 @@
+FROM docker.io/library/ubuntu@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
+RUN apt-get update && apt-get install -y --no-install-recommends python3 git ca-certificates \
+    && dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > /dev786-image-packages.txt \
+    && test "$(wc -c < /dev786-image-packages.txt)" -le 8192 \
+    && rm -rf /var/lib/apt/lists/*

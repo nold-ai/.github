@@ -1,0 +1,216 @@
+name: Fixed shared Git AFTER controls
+'on':
+  push:
+    branches: [codex/dev786-shared-git-after-18]
+permissions:
+  contents: read
+jobs:
+  validation:
+    if: github.repository == 'nold-ai/.github' && github.event.created == true && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact implementation candidate
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout public fixed R fixture data
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: nold-ai/specfact-cli
+          ref: 4ae6175a4d337296d0347e73b66c9da1f0e43f7f
+          fetch-depth: 2
+          submodules: false
+          persist-credentials: false
+          path: .ci-core-fixture/original.git
+      - name: Run the fixed clean Linux AFTER controls
+        shell: bash
+        run: |
+          /usr/bin/python3 -I -S - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, platform, resource, stat, subprocess, sys
+          os.umask(0o077)
+          expected = {'GITHUB_REPOSITORY': 'nold-ai/.github', 'GITHUB_REPOSITORY_ID': '1110267669',
+                      'GITHUB_REPOSITORY_OWNER_ID': '225190663', 'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-after-18',
+                      'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1'}
+          if any(os.environ.get(k) != v for k, v in expected.items()):
+              raise ValueError('fixed host context')
+          if sys.platform != 'linux' or platform.machine() != 'x86_64' or not os.getuid() or os.getuid() != os.geteuid():
+              raise ValueError('fixed Linux nonroot host')
+          uid, gid = os.getuid(), os.getgid()
+          workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve(strict=True)
+          temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
+          if not workspace.is_absolute() or not temp.is_absolute() or any(c in str(workspace)+str(temp) for c in ',\n\r'):
+              raise ValueError('fixed bind paths')
+          envelope = temp / 'dev786-shared-git-after-18-envelope'
+          envelope.mkdir(mode=0o700)
+          export = envelope / 'export'
+          export.mkdir(mode=0o700)
+          scratch = envelope / 'scratch'
+          scratch.mkdir(mode=0o700)
+          config = envelope / 'docker-config'
+          config.mkdir(mode=0o700)
+          cli_env = {'PATH': '/usr/bin:/bin', 'HOME': str(envelope), 'DOCKER_CONFIG': str(config), 'LC_ALL': 'C.UTF-8'}
+          docker = ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock']
+          limits = []
+          for kind, cap in ((resource.RLIMIT_CPU,240), (resource.RLIMIT_AS,2147483648),
+                            (resource.RLIMIT_FSIZE,268435456), (resource.RLIMIT_NPROC,128), (resource.RLIMIT_CORE,0)):
+              pair = resource.getrlimit(kind)
+              if any(v != resource.RLIM_INFINITY and v < cap for v in pair):
+                  raise ValueError('tighter host bound is unsupported')
+              limits.append({'resource': kind, 'inherited': pair, 'fixed': cap})
+          def cap_cli_output():
+              resource.setrlimit(resource.RLIMIT_FSIZE, (262144,262144))
+          source = workspace / '.github/development/dev786_fixed_original_runner'
+          image = None
+          name = 'dev786-shared-git-after-18-' + os.environ['GITHUB_RUN_ID'] + '-1'
+          if not os.environ['GITHUB_RUN_ID'].isdecimal():
+              raise ValueError('run identifier')
+          status = 1
+          observed_exit = None
+          stage = 'daemon'
+          facts = {'host': {'release': platform.freedesktop_os_release(), 'kernel': platform.release(),
+                            'machine': platform.machine(), 'python': sys.version, 'uid': uid, 'gid': gid},
+                   'limits': limits, 'base': 'docker.io/library/ubuntu@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d'}
+          try:
+              with (export / 'environment-daemon.json').open('xb') as out:
+                  subprocess.run(docker + ['info', '--format', '{"id":{{json .ID}},"server":{{json .ServerVersion}},"os":{{json .OSType}},"arch":{{json .Architecture}},"security":{{json .SecurityOptions}},"init":{{json .InitBinary}}}'],
+                                 env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, timeout=10, check=True)
+              raw = (export / 'environment-daemon.json').read_bytes()
+              if len(raw) > 1024:
+                  raise ValueError('daemon fact bound')
+              daemon = json.loads(raw)
+              security = daemon['security']
+              if daemon['os'] != 'linux' or daemon['arch'] != 'x86_64' or daemon['init'] != 'docker-init':
+                  raise ValueError('unsupported existing daemon')
+              if any('rootless' in x or 'userns' in x for x in security) or 'name=apparmor' not in security or not any(x.startswith('name=seccomp,profile=builtin') for x in security):
+                  raise ValueError('daemon user mapping or default security')
+              stage = 'image-build'
+              definition_raw = (source / 'Dockerfile.shared-git-after').read_bytes()
+              if len(definition_raw) != 401 or hashlib.sha256(definition_raw).hexdigest() != 'f317e7b4a3a9a7352b698a2fefb89f8498a7d894ae2ee0be5f72026d03c33f81':
+                  raise ValueError('reviewed Dockerfile identity')
+              with (source / 'Dockerfile.shared-git-after').open('rb') as definition, (export / 'environment-build.log').open('xb') as out:
+                  subprocess.run(docker + ['build', '--platform', 'linux/amd64', '--iidfile', str(envelope / 'image-id'), '-'],
+                                 env=cli_env, preexec_fn=cap_cli_output, stdin=definition, stdout=out, stderr=subprocess.STDOUT, timeout=180, check=True)
+              image = (envelope / 'image-id').read_text().strip()
+              if len(image) != 71 or not image.startswith('sha256:') or any(c not in '0123456789abcdef' for c in image[7:]):
+                  raise ValueError('local image identity')
+              stage = 'image-inspect'
+              with (export / 'environment-image.json').open('xb') as out:
+                  subprocess.run(docker + ['image', 'inspect', '--format', '{"id":{{json .Id}},"os":{{json .Os}},"arch":{{json .Architecture}},"env":{{json .Config.Env}},"entrypoint":{{json .Config.Entrypoint}},"user":{{json .Config.User}}}', image],
+                                 env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, timeout=10, check=True)
+              raw = (export / 'environment-image.json').read_bytes()
+              if len(raw) > 1024:
+                  raise ValueError('image fact bound')
+              image_facts = json.loads(raw)
+              if image_facts != {'id': image, 'os': 'linux', 'arch': 'amd64', 'env': ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'], 'entrypoint': None, 'user': ''}:
+                  raise ValueError('unexpected image defaults')
+              stage = 'host-facts'
+              raw = json.dumps(facts, sort_keys=True).encode()
+              if len(raw) > 4096:
+                  raise ValueError('host fact bound')
+              (export / 'environment-host.json').write_bytes(raw)
+              public = (*expected, 'GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_JOB', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA')
+              invocation = docker + ['run', '--name', name, '--init', '--user', str(uid)+':'+str(gid), '--cap-drop', 'ALL',
+                                    '--ulimit', 'cpu=240:240',
+                                    '--ulimit', 'fsize=268435456:268435456', '--ulimit', 'nproc=128:128', '--ulimit', 'core=0:0',
+                                    '--mount', 'type=bind,src='+str(workspace)+',dst='+str(workspace)+',readonly',
+                                    '--mount', 'type=bind,src='+str(envelope)+',dst='+str(envelope),
+                                    '--workdir', str(workspace)]
+              for key in public:
+                  invocation.extend(('--env', key+'='+os.environ[key]))
+              invocation.extend(('--env', 'GITHUB_WORKSPACE='+str(workspace), '--env', 'RUNNER_TEMP='+str(scratch)))
+              invocation.extend((image, '/usr/bin/python3', '-I', '-S', str(source / 'operator.py')))
+              stage = 'run'
+              with (export / 'environment-run.log').open('xb') as out:
+                  observed_exit = subprocess.run(invocation, env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, timeout=315).returncode
+              status = observed_exit
+              stage = 'transport'
+              with (export / 'environment-transport.json').open('xb') as out:
+                  subprocess.run(docker + ['inspect', '--format', '{"image":{{json .Image}},"user":{{json .Config.User}},"init":{{json .HostConfig.Init}},"privileged":{{json .HostConfig.Privileged}},"capadd":{{json .HostConfig.CapAdd}},"capdrop":{{json .HostConfig.CapDrop}},"groups":{{json .HostConfig.GroupAdd}},"pidmode":{{json .HostConfig.PidMode}},"usernsmode":{{json .HostConfig.UsernsMode}},"securityopt":{{json .HostConfig.SecurityOpt}},"ulimits":{{json .HostConfig.Ulimits}},"mounts":{{json .Mounts}},"apparmor":{{json .AppArmorProfile}},"path":{{json .Path}},"args":{{json .Args}},"exit":{{json .State.ExitCode}}}', name],
+                                 env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, timeout=10, check=True)
+              raw = (export / 'environment-transport.json').read_bytes()
+              if len(raw) > 3072:
+                  raise ValueError('transport fact bound')
+              transport = json.loads(raw)
+              if transport['image'] != image or transport['user'] != str(uid)+':'+str(gid) or transport['init'] is not True or transport['privileged'] or transport['capadd'] or transport['groups'] or transport['pidmode'] or transport['usernsmode'] or transport['securityopt'] or transport['capdrop'] != ['ALL'] or transport['apparmor'] != 'docker-default' or transport['exit'] != status:
+                  raise ValueError('container transport differs')
+              if transport['path'] != '/usr/bin/python3' or transport['args'] != ['-I','-S',str(source/'operator.py')]:
+                  raise ValueError('fixed operator entry differs')
+              if {x['Name']: (x['Soft'],x['Hard']) for x in transport['ulimits']} != {'cpu': (240,240), 'fsize': (268435456,268435456), 'nproc': (128,128), 'core': (0,0)}:
+                  raise ValueError('fixed Docker limits differ')
+              mounts = transport['mounts']
+              if len(mounts) != 2 or {(m['Source'],m['Destination'],m['RW']) for m in mounts} != {(str(workspace),str(workspace),False),(str(envelope),str(envelope),True)} or any(m['Type'] != 'bind' for m in mounts):
+                  raise ValueError('container mounts differ')
+          except BaseException as error:
+              status = 1
+              facts['setup_error'] = type(error).__name__[:64]
+          finally:
+              removal, removal_error, image_removal, image_error = None, None, None, None
+              try:
+                  removal = subprocess.run(docker + ['container', 'rm', '--force', name], env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode
+              except BaseException as error:
+                  removal_error = type(error).__name__[:64]
+              if image is not None:
+                  try:
+                      image_removal = subprocess.run(docker + ['image', 'rm', image], env=cli_env, preexec_fn=cap_cli_output, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode
+                  except BaseException as error:
+                      image_error = type(error).__name__[:64]
+              if removal != 0 or (image is not None and image_removal != 0):
+                  status = 1
+              try:
+                  for member, bound in (('environment-daemon.json',1024), ('environment-image.json',1024), ('environment-transport.json',3072)):
+                      path = export / member
+                      if path.exists() and path.stat().st_size > bound:
+                          size = path.stat().st_size
+                          path.write_bytes(json.dumps({'complete': False, 'observed_bytes': size}).encode())
+                          status = 1
+                  if not (export / 'environment-host.json').exists():
+                      raw = json.dumps(facts, sort_keys=True).encode()
+                      if len(raw) > 4096:
+                          (export / 'environment-host.json').write_bytes(json.dumps({'complete': False, 'observed_bytes': len(raw)}).encode())
+                          raise ValueError('host failure fact bound')
+                      (export / 'environment-host.json').write_bytes(raw)
+                  allowed = {'sources', 'receipt.json', '0-limits.json', '0.stdout', '0.stderr', 'environment-build.log',
+                             'environment-run.log', 'environment-host.json', 'environment-packages.txt',
+                             'environment-transport.json', 'environment-receipt.json', 'environment-daemon.json', 'environment-image.json'}
+                  if any(p.name not in allowed for p in export.iterdir()):
+                      raise ValueError('export membership')
+                  source_members = {'operator.py', 'test_prepare_original_r.py', 'test_shared_r_git.py', 'original-r-api.json', 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after', '.github/development/dev786_fixed_original_runner/preflight.py', '.github/scripts/late_cycle_admission.py'}
+                  if (export/'sources').exists():
+                      for p in (export/'sources').rglob('*'):
+                          if not p.is_dir() and (p.relative_to(export/'sources').as_posix() not in source_members or not stat.S_ISREG(p.lstat().st_mode) or p.stat().st_nlink != 1):
+                              raise ValueError('closed source export')
+                  if 1024 + sum(p.stat().st_size for p in export.rglob('*') if p.is_file()) + sum(p.stat().st_size for p in envelope.iterdir() if p.is_file()) > 8388608:
+                      raise ValueError('final storage bound')
+                  logs = [export/p for p in ('0.stdout','0.stderr','environment-build.log','environment-run.log') if (export/p).exists()]
+                  if any(p.stat().st_size > 524288 for p in logs) or sum(p.stat().st_size for p in logs) > 2097152:
+                      raise ValueError('aggregate stream bound')
+              except BaseException as error:
+                  status = 1
+                  if 'setup_error' not in facts:
+                      stage = 'final-checks'
+                      facts['setup_error'] = type(error).__name__[:64]
+                  raise
+              finally:
+                  summary = {'operator_exit': observed_exit, 'workflow_exit': status, 'stage': stage,
+                             'disposal_is_cleanup_proof': False, 'setup_error': facts.get('setup_error'),
+                             'container_disposal_exit': removal, 'container_disposal_error': removal_error,
+                             'image_disposal_exit': image_removal, 'image_disposal_error': image_error}
+                  raw = json.dumps(summary, sort_keys=True).encode()
+                  if len(raw) > 1024:
+                      raise ValueError('setup receipt bound')
+                  (export / 'environment-receipt.json').write_bytes(raw)
+          raise SystemExit(status)
+          PY
+      - name: Retain bounded source and results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dev786-shared-git-after-18-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev786-shared-git-after-18-envelope/export/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
