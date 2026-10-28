@@ -1475,7 +1475,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
         clock_check()
         if time.monotonic() >= end:
             refuse('cleanup')
-        if account.metadata_visits >= 20000:
+        if account.metadata_visits >= 64000:
             refuse('budget')
         account.metadata_visits += 1
 
@@ -1764,7 +1764,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                 or account.read_bytes > account.spent_bytes
                 or not _owned_integer(account.retained_bytes, 16 * MIB)
                 or not _owned_integer(account.retained_members, 64)
-                or not _owned_integer(account.metadata_visits, 20000)
+                or not _owned_integer(account.metadata_visits, 64000)
                 or not _owned_integer(account.stream_bytes, 16 * MIB)
                 or not _owned_integer(account.retained_stream_bytes, 16 * MIB)
                 or type(account.row_seconds) not in (int, float)
@@ -1773,7 +1773,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                 or any(type(secret) is not bytes or not 8 <= len(secret) <= 4096
                        for secret in account.secrets)):
             refuse('budget')
-        if (account.spent_bytes >= 255 * MIB or account.metadata_visits >= 20000
+        if (account.spent_bytes >= 255 * MIB or account.metadata_visits >= 64000
                 or account.stream_bytes >= 16 * MIB or account.retained_stream_bytes >= 16 * MIB):
             refuse('budget')
         if (type(timer) is not Timer or type(timer.end) not in (int, float)
@@ -2015,7 +2015,7 @@ def _owned_clock(account: _AttemptAccount) -> None:
 
 def _owned_visit(account: _AttemptAccount) -> None:
     _owned_clock(account)
-    _owned_require(account.metadata_visits < 20000)
+    _owned_require(account.metadata_visits < 64000)
     account.metadata_visits += 1
 
 
@@ -2071,7 +2071,7 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and account.read_bytes <= account.spent_bytes
                        and _owned_integer(account.retained_bytes, 16 * MIB)
                        and _owned_integer(account.retained_members, 64)
-                       and _owned_integer(account.metadata_visits, 20000))
+                       and _owned_integer(account.metadata_visits, 64000))
         _owned_require(type(account.secrets) is tuple and len(account.secrets) <= 32)
         _owned_require(all(type(secret) is bytes and 8 <= len(secret) <= 4096
                            for secret in account.secrets))
@@ -2081,7 +2081,7 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and 1 <= depth <= 64 and len(os.fsencode(name)) <= 4096
                        and os.path.normpath(name) == name
                        and all(part not in ('.', '..') for part in root.path.parts[1:]))
-        _owned_require(account.metadata_visits + 2 * depth + 6 <= 20000)
+        _owned_require(account.metadata_visits + 2 * depth + 6 <= 64000)
         flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
         _owned_clock(account)
         _owned_root_check(account)
