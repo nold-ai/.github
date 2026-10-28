@@ -1542,8 +1542,14 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                         refuse('budget')
                     descriptor = None
                     try:
-                        descriptor = os.open('/proc/' + entry.name + '/stat',
-                                             os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                        try:
+                            descriptor = os.open('/proc/' + entry.name + '/stat',
+                                                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                        except FileNotFoundError:
+                            if int(entry.name) == pid:
+                                owned = False
+                                refuse('ownership')
+                            continue
                         clock_check()
                         if time.monotonic() >= end:
                             refuse('cleanup')
