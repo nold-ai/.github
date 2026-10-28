@@ -320,9 +320,20 @@ class RealGitSyntheticAPI(unittest.TestCase):
         self.assertIsNone(self.mutation)
 
     def test_graft_is_refused(self):
-        self.mutation = lambda root: (root / ".git/info/grafts").write_text(R + " " + C + "\n")
+        observed = []
+        def graft(root):
+            info = root / ".git/info"
+            parent_before = info.exists()
+            info.mkdir(exist_ok=True)
+            path = info / "grafts"
+            path.write_text(R + " " + C + "\n")
+            observed.append((parent_before, info.is_dir(), path.read_bytes()))
+        self.mutation = graft
         self.refused()
         self.assertIsNone(self.mutation)
+        self.assertEqual(len(observed), 1)
+        self.assertIs(type(observed[0][0]), bool)
+        self.assertEqual(observed[0][1:], (True, (R + " " + C + "\n").encode()))
 
     def test_alternate_is_refused(self):
         self.mutation = lambda root: (root / ".git/objects/info/alternates").write_text(str(options.fixture_root / "original.git/objects") + "\n")
