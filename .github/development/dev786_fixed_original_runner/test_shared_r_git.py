@@ -305,7 +305,9 @@ class SharedGit(unittest.TestCase):
 class SourceAdmission(unittest.TestCase):
     def test_pipe_footer_and_receipt_are_separate(self):
         tree = ast.parse(options.candidate.read_text())
-        drains = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == 'drain']
+        owner = next(node for node in tree.body
+                     if isinstance(node, ast.FunctionDef) and node.name == '_original_r_git_checks')
+        drains = [node for node in ast.walk(owner) if isinstance(node, ast.FunctionDef) and node.name == 'drain']
         capacities = [node.value for owner in drains for node in ast.walk(owner)
                       if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'capacity'
                                                                for t in node.targets)]
