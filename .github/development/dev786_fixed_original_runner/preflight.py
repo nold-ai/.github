@@ -1037,7 +1037,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-23',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-24',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -4019,6 +4019,36 @@ def _finish_original15(account, original, published):
         raw = footer({'complete': False, 'outcome': 'Incomplete', 'cleanup': []})
         _proof_require(os.write(footer_fd, raw) == len(raw))
         footer_started = True
+        if account.live_entered and account.stopped:
+            preparation = account.preparation
+            _proof_require(type(preparation) is _OriginalRPreparation and len(preparation.commands) <= 96)
+            _proof_charge(account, 4 * (preparation.metadata_bytes + 65536))
+            commands = []
+            for command in preparation.commands:
+                _proof_require(type(command) is _OriginalRGit)
+                values = (command.receipt, command.stdout, command.stderr)
+                for value in values:
+                    _proof_require(type(value) is bytes)
+                    _proof_charge(account, (len(account.secrets) + 2) * len(value))
+                    _proof_safe(account, value)
+                commands.append(tuple(base64.b64encode(value).decode() for value in values))
+            raw = encoded(commands)
+            _proof_require(account.metadata_bytes + preparation.metadata_bytes + len(raw) <= 8 * MIB - 65536
+                           and account.retained_bytes + len(raw) <= 16 * MIB
+                           and len(files) + 2 < 128
+                           and sum(item[1] for item in files) + len(raw) + 65536 <= 160 * MIB)
+            _proof_charge(account, (len(account.secrets) + 2) * len(raw))
+            _proof_safe(account, raw)
+            _proof_final_clock(account)
+            name = 'preparation-commands.json'
+            fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=export_fd)
+            try:
+                _proof_require(os.write(fd, raw) == len(raw))
+            finally:
+                os.close(fd)
+            account.metadata_bytes += len(raw)
+            account.retained_bytes += len(raw)
+            files.append((name, len(raw), sha(raw)))
         if published.state is _OwnerState.RETURNED and published.value is True:
             account.old_join = _OriginalJoinFacts(False, 0, 0, ())
             old_fd = None

@@ -126,3 +126,11 @@ Synthetic failure controls use real registered temporary roots, a real owned dia
 Read the actual identity length from a below-bound failed-live export. At the exact shared threshold its copy must be debited. With one fewer available byte, neither identity open nor identity write may occur. With finite exhausted work, no base64 conversion may begin. Assertions inspect captured effects after the finalizer returns, outside its catches.
 
 Root must run the supplementary controls against unchanged input before applying the proposal, retain genuine failures, then apply and retain passing results. Existing 49-test source stays byte-exact. Independent code review, shared live Git integration, whole-unit composition and native acceptance remain required.
+
+## Failed preparation diagnostics before bulk verification
+
+A stopped, live-entered attempt retains its already-captured preparation command receipts, stdout and stderr in `preparation-commands.json` before scanning the older export. The shape is the same base64 tuple list already used by identity.json. This diagnostic member does not claim successful execution, join integrity or authenticated origin. Successful proof behavior and identity.json remain unchanged.
+
+Use the existing account, final clock, normal work ceiling, metadata/report/export limits, raw sensitive-byte check before encoding, final encoded safety check, exclusive no-follow write and closure file digest binding. Charge duplicated bytes. Never consume the closure-only reserve for diagnostic data. Insufficient budget or unsafe bytes withhold the member and keep the attempt incomplete. Every owned scratch cleanup remains attempted.
+
+The focused regression uses the existing real temporary-root/publisher/finalizer fixtures with tiny Synthetic command bytes and a safe bulk member. A near-limit normal-work account must retain the tiny command member while the actual later bulk join still refuses. A sensitive-output control must withhold it before base64 encoding. These tests supply local failure-path evidence only and never native RED or complete-packet credit.
