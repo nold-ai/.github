@@ -75,7 +75,7 @@ class Controls(unittest.TestCase):
     def cleanup(self, mode, initial_failure=None):
         events = []
         census_error = OSError('synthetic census failure')
-        account = NS(metadata_visits=20000 if mode == 'budget' else 0)
+        account = NS(metadata_visits=64000 if mode == 'budget' else 0)
         clock = Clock()
         observations = 0
 
@@ -191,24 +191,24 @@ class Controls(unittest.TestCase):
         return events, account.metadata_visits, preparation.scans, error
 
     def test_metadata_exhaustion_refuses_before_stat(self):
-        events, visits, scans, error = self.inventory(19998)
+        events, visits, scans, error = self.inventory(63998)
         self.assertIsInstance(error, Refusal)
-        self.assertEqual(events, [('scandir', 19999)])
-        self.assertEqual(visits, 20000)
+        self.assertEqual(events, [('scandir', 63999)])
+        self.assertEqual(visits, 64000)
         self.assertEqual(scans, ())
 
     def test_regular_entry_has_separate_stat_debit(self):
-        events, visits, scans, error = self.inventory(19996)
+        events, visits, scans, error = self.inventory(63996)
         self.assertIsNone(error)
-        self.assertEqual(events, [('scandir', 19997), ('stat', 19999)])
-        self.assertEqual(visits, 20000)
+        self.assertEqual(events, [('scandir', 63997), ('stat', 63999)])
+        self.assertEqual(visits, 64000)
         self.assertEqual(scans, ((1, 0),))
 
     def test_metadata_exhaustion_refuses_before_directory_open(self):
-        events, visits, scans, error = self.inventory(19997, directory=True)
+        events, visits, scans, error = self.inventory(63997, directory=True)
         self.assertIsInstance(error, Refusal)
-        self.assertEqual(events, [('scandir', 19998), ('stat', 20000)])
-        self.assertEqual(visits, 20000)
+        self.assertEqual(events, [('scandir', 63998), ('stat', 64000)])
+        self.assertEqual(visits, 64000)
         self.assertEqual(scans, ())
 
 
