@@ -1,5 +1,6 @@
 """Draft stdlib tests. Local Git + Synthetic API never confer native authority."""
 import argparse
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -612,15 +613,118 @@ class RealGitSyntheticAPI(unittest.TestCase):
         self.assertEqual((len(self.api_calls), len(self.git_calls)), frontier)
 
 
+
+def _diagnostic_integer(value):
+    return value if type(value) is int and -(2**63) < value < 2**63 else None
+
+
+def _diagnostic_class(error):
+    allowed = (OSError, FileNotFoundError, PermissionError, ProcessLookupError,
+               ChildProcessError, InterruptedError, BlockingIOError, IsADirectoryError,
+               NotADirectoryError, FileExistsError, TimeoutError, ValueError, IndexError,
+               TypeError, AttributeError, KeyError, RuntimeError, AssertionError)
+    for kind in allowed:
+        if type(error) is kind:
+            return kind.__name__
+    return 'OtherException'
+
+
+@contextmanager
+def _preparation_exception_observer(results):
+    previous = sys.gettrace()
+    if previous is not None:
+        raise RuntimeError('diagnostic requires no preexisting tracer')
+    code_type = type(candidate._prepare_original_r.__code__)
+    names = ('_prepare_original_r', 'clock', 'visit', 'charge', 'sensitive', 'retain',
+             'children_check', 'metadata', 'commit_metadata', 'git', 'preexec',
+             'observe', 'identity', 'group_empty', 'drain', 'group_signal', 'config',
+             'inventory', 'walk', 'read_file', '_original_r_require', '_original_r_registration')
+    codes = set()
+    def collect(code):
+        if code.co_name in names:
+            codes.add(code)
+        for value in code.co_consts:
+            if type(value) is code_type:
+                collect(value)
+    collect(candidate._prepare_original_r.__code__)
+    collect(candidate._original_r_require.__code__)
+    collect(candidate._original_r_registration.__wrapped__.__code__)
+    events = []
+    overflow = observer_failed = False
+    def observe(frame, event, argument):
+        nonlocal overflow, observer_failed
+        try:
+            if not any(frame.f_code is code for code in codes):
+                return None
+            frame.f_trace_lines = False
+            frame.f_trace_opcodes = False
+            if event != 'exception' or observer_failed:
+                return observe
+            error = argument[1]
+            if type(error) is StopIteration:
+                return observe
+            if len(events) == 8:
+                overflow = True
+                return observe
+            local = frame.f_locals
+            account = local.get('account')
+            preparation = account.preparation if account is not None else None
+            commands = preparation.commands if preparation is not None else ()
+            last = commands[-1] if commands else None
+            caller = frame.f_back
+            value = {'function': frame.f_code.co_name, 'line': frame.f_lineno,
+                     'caller_function': caller.f_code.co_name if caller is not None and any(caller.f_code is code for code in codes) else None,
+                     'caller_line': caller.f_lineno if caller is not None and any(caller.f_code is code for code in codes) else None,
+                     'class': 'PreparationRefusal' if type(error) is candidate._OriginalRPreparationError else _diagnostic_class(error),
+                     'errno': _diagnostic_integer(error.errno) if isinstance(error, OSError) else None,
+                     'command_count': _diagnostic_integer(len(commands)) if preparation is not None else None,
+                     'last_reason': (last.reason if last is not None and last.reason in ('incomplete', 'deadline', 'complete') else None),
+                     'last_pid': _diagnostic_integer(last.pid) if last is not None else None,
+                     'last_status': _diagnostic_integer(last.wait_status) if last is not None else None,
+                     'last_waitid': ([ _diagnostic_integer(v) for v in last.waitid ] if last is not None and type(last.waitid) is tuple and len(last.waitid) == 3 else None),
+                     'last_cleanup': last.cleanup_complete is True if last is not None else None}
+            events.append(value)
+        except candidate.Deadline:
+            observer_failed = True
+            raise
+        except Exception:
+            observer_failed = True
+            return None
+        return observe
+    try:
+        sys.settrace(observe)
+        yield
+    finally:
+        primary = sys.exception()
+        try:
+            sys.settrace(previous)
+        except BaseException:
+            if primary is None and not (results and not results[0].wasSuccessful()):
+                raise
+        try:
+            raw = json.dumps({'preparation_exceptions': events, 'overflow': overflow,
+                              'observer_failed': observer_failed}, separators=(',', ':'), sort_keys=True).encode()
+            if len(raw) > 4096:
+                raw = b'{"preparation_exceptions":[],"overflow":true}'
+            sys.stdout.write(raw.decode() + '\n')
+            sys.stdout.flush()
+        except BaseException:
+            if primary is None and not (results and not results[0].wasSuccessful()):
+                raise
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--candidate', required=True, type=Path)
     parser.add_argument('--full', action='store_true')
+    parser.add_argument('--diagnostic-positive', action='store_true')
     parser.add_argument('--fixture-root', type=Path)
     parser.add_argument('--r-metadata', type=Path)
     options = parser.parse_args()
     if not options.candidate.is_absolute():
         parser.error('--candidate must be absolute')
+    if options.diagnostic_positive and not options.full:
+        parser.error('--diagnostic-positive requires --full')
     sys.dont_write_bytecode = True
     candidate = load(options.candidate, 'original_r_candidate')
     if options.full:
@@ -633,4 +737,11 @@ if __name__ == '__main__':
             parser.error('strict JSON owner source changed')
         load(helper, 'late_cycle_admission')
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(RealGitSyntheticAPI if options.full else MissingNew)
+    if options.diagnostic_positive:
+        suite = unittest.TestSuite([RealGitSyntheticAPI('test_actual_objects_sources_and_minimal_history')])
+        results = []
+        with _preparation_exception_observer(results):
+            result = unittest.TextTestRunner(verbosity=2).run(suite)
+            results.append(result)
+        raise SystemExit(not result.wasSuccessful())
     raise SystemExit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())
