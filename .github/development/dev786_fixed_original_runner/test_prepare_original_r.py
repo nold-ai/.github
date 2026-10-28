@@ -194,8 +194,10 @@ class RealGitSyntheticAPI(unittest.TestCase):
             self.assertFalse(kwargs.get('shell', False))
             self.assertNotIn('timeout', kwargs)
             self.assertEqual(set(kwargs['env']),
-                             {'HOME', 'TMPDIR', 'PATH', 'LANG', 'LC_ALL', 'GIT_TERMINAL_PROMPT'})
+                             {'HOME', 'TMPDIR', 'PATH', 'LANG', 'LC_ALL', 'GIT_TERMINAL_PROMPT',
+                              'GIT_CONFIG_NOSYSTEM'})
             self.assertEqual(kwargs['env']['GIT_TERMINAL_PROMPT'], '0')
+            self.assertEqual(kwargs['env']['GIT_CONFIG_NOSYSTEM'], '1')
             self.assertEqual(Path(kwargs['env']['HOME']), self.account.root.path / 'home')
             self.assertEqual(Path(kwargs['env']['TMPDIR']), self.account.root.path / 'tmp')
             self.assert_timer_observation(timer)
