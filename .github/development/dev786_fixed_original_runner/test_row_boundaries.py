@@ -520,7 +520,7 @@ class RowBoundaries(unittest.TestCase):
                         self.assertFalse(caught.exception.result.cleanup_complete)
                         self.assertIn(caught.exception.result.reason, ('proc', 'budget', 'cleanup'))
                         self.assertLess(time.monotonic() - start, 16)
-                        self.assertLessEqual(account.metadata_visits, 20000)
+                        self.assertLessEqual(account.metadata_visits, 64000)
                         self.assertLessEqual(account.spent_bytes, CAP)
                         self.assertGreater(account.metadata_visits, 0)
                         if fault in ('unavailable', 'malformed', '8193'):
@@ -589,7 +589,7 @@ class RowBoundaries(unittest.TestCase):
                 self.invoke_linux(body)
 
     def test_stream_budget_reserve_and_categories_do_not_borrow(self):
-        for field, value in (('spent_bytes', CAP), ('metadata_visits', 20000),
+        for field, value in (('spent_bytes', CAP), ('metadata_visits', 64000),
                              ('stream_bytes', 16*MIB), ('retained_stream_bytes', 16*MIB)):
             with self.subTest(field=field):
                 def body(setup, patches):

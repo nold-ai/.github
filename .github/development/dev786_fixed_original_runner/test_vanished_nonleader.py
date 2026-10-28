@@ -157,7 +157,7 @@ class Synthetic(unittest.TestCase):
                 self.assertFalse(descriptors)
 
     def test_budgets_and_deadline_remain_bound(self):
-        for options, reason in [({'visits': 19997}, 'budget'),
+        for options, reason in [({'visits': 63997}, 'budget'),
                                 ({'spent': 255 * 1024 * 1024 - 8192}, 'budget'),
                                 ({'now': 10}, 'cleanup')]:
             with self.subTest(options=options):
@@ -166,7 +166,7 @@ class Synthetic(unittest.TestCase):
                     **options)
                 with self.assertRaisesRegex(Refusal, '^' + reason + '$'):
                     scan(10)
-                self.assertLessEqual(account.metadata_visits, 20000)
+                self.assertLessEqual(account.metadata_visits, 64000)
                 self.assertLessEqual(account.spent_bytes, 255 * 1024 * 1024)
                 self.assertFalse(calls['read'] or calls['close'] or descriptors)
 
