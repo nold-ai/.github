@@ -1,0 +1,134 @@
+name: Native materialization development preflight 22
+on:
+  push:
+    branches: [codex/dev786-original-native-22]
+    paths: [.github/workflows/native-materialization-preflight.yml]
+permissions:
+  contents: read
+jobs:
+  materialize:
+    if: github.repository == 'nold-ai/.github' && github.event.deleted != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact auxiliary candidate
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare evidence parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/native-materialization-preflight"
+      - name: Admit reviewed checkout sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S - <<'PYTHON'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          import stat
+
+          members = (
+              ('.github/development/dev786_fixed_original_runner/preflight.py', 229875, '319a190b63652cc1a15c7c16523746f3138e2d0857de9c50691b78c35556cdea'),
+              ('.github/scripts/native_requirements_bootstrap.py', 18504, '41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4'),
+              ('.github/scripts/native_requirements_acquisition.py', 8887, 'eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe'),
+              ('.github/scripts/late_cycle_admission.py', 41624, '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'),
+              ('.github/scripts/native_requirements_materialization.py', 36385, '029634a7336e5738a369cd1f2a5cbbf1bda1595cfd6564c043c77aceecb0e4bf'),
+              ('.github/native-tools/dev786/build-locked.txt', 741, '928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7'),
+              ('.github/native-tools/dev786/build-requirements.in', 61, 'd419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df'),
+              ('.github/native-tools/dev786/locked.txt', 65303, 'a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341'),
+              ('.github/native-tools/dev786/requirements.in', 413, 'fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f'),
+              ('.github/native-tools/dev786/tool-files.json', 409, '969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad'),
+              ('.github/native-tools/dev786/runtime.json', 1352, '7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/compare.json', 326, 'e49c731f723a5bfe5daae171806b3e37caad1f46902e37a27d7bb6800a0f8599'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/corrupt-input-envelope.json', 738, '873544e96ec37ac6b2557691048493a492557aaade29a6eab0eb2606a451eeb5'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/corrupt-requirements.in', 413, 'b909849caf501cb1343aecf0e80fc26bf997126a78d574c46881d5e54741b18b'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/index-envelope.json', 638, '50e7030d2509d0adeae22777643fcae3af4ce8656c65fc623fe46fc7ea9ef520'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/index.json', 347, '8bb0276e13664a5208a26451fd66a7e83620c445209b0d24a569daf78d78bc27'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/main.json', 101, '2e6ee0a8cf7619f4dbe5624eb4814d59df4a701158d64c8af177c426e30b71db'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/moved-main.json', 101, '9187f2fd6a58682fcd4965fefc100865e6d7b8f5155034d382a24b478e8d664e'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/wrong-index-envelope.json', 638, '29ef78589ab54e3eba309f464d21d5051d0041eb93a1a05fda292d43034805b5'),
+              ('.github/development/dev786_fixed_original_runner/fixtures/wrong-index.json', 347, 'cd491ae49ee174fc79d4eed775b22c03156d2d39ad147769da3a5afbed171359'),
+          )
+          if len(members) != 20 or len({path for path, size, digest in members}) != 20:
+              raise SystemExit("reviewed source identity: fixed membership")
+          workspace = Path(os.environ["GITHUB_WORKSPACE"])
+          whole = 18504
+          preflight_bytes = 0
+          for relative, expected_size, expected_hash in members:
+              path = workspace / relative
+              try:
+                  if not stat.S_ISREG(path.lstat().st_mode):
+                      raise SystemExit("source file kind: " + relative)
+                  descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                  with os.fdopen(descriptor, "rb") as source:
+                      if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                          raise SystemExit("source file kind: " + relative)
+                      content = source.read(expected_size + 1)
+              except OSError:
+                  raise SystemExit("source file kind: " + relative)
+              if len(content) != expected_size or hashlib.sha256(content).hexdigest() != expected_hash:
+                  raise SystemExit("reviewed source identity: " + relative)
+              whole += len(content)
+              if relative == ".github/development/dev786_fixed_original_runner/preflight.py":
+                  preflight_bytes = len(content)
+          relative = ".github/workflows/native-materialization-preflight.yml"
+          path = workspace / relative
+          try:
+              if not stat.S_ISREG(path.lstat().st_mode):
+                  raise SystemExit("source file kind: " + relative)
+              descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+              with os.fdopen(descriptor, "rb") as source:
+                  if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                      raise SystemExit("source file kind: " + relative)
+                  workflow = source.read(458752 + 1)
+          except OSError:
+              raise SystemExit("source file kind: " + relative)
+          whole += len(workflow)
+          if whole >= 458752 or whole - preflight_bytes > 262144:
+              raise SystemExit("complete source budget")
+          if not (
+              os.environ.get("GITHUB_EVENT_NAME") == "push"
+              and os.environ.get("GITHUB_REPOSITORY") == "nold-ai/.github"
+              and os.environ.get("GITHUB_REPOSITORY_ID") == "1110267669"
+              and os.environ.get("GITHUB_REPOSITORY_OWNER_ID") == "225190663"
+              and os.environ.get("GITHUB_REF") == "refs/heads/codex/dev786-original-native-22"
+              and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+              and re.fullmatch("[0-9a-f]{40}", os.environ.get("GITHUB_SHA", ""))
+              and os.environ.get("GITHUB_WORKFLOW_SHA") == os.environ.get("GITHUB_SHA")
+          ):
+              raise SystemExit("fixed workflow context")
+          PYTHON
+      - name: Observe benign creation deadline
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S "$GITHUB_WORKSPACE/.github/development/dev786_fixed_original_runner/preflight.py" creation-control --policy "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/native-materialization-preflight/evidence"
+      - name: Observe integrated original command controls
+        id: controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S "$GITHUB_WORKSPACE/.github/development/dev786_fixed_original_runner/preflight.py" controls --policy "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/native-materialization-preflight/evidence"
+      - name: Observe one original native materialization
+        if: success() && steps.controls.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S "$GITHUB_WORKSPACE/.github/development/dev786_fixed_original_runner/preflight.py" actual --policy "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/native-materialization-preflight/evidence"
+      - name: Retain safe development diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: native-materialization-development-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-materialization-preflight/evidence/export/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
