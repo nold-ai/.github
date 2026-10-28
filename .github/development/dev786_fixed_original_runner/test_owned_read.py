@@ -122,6 +122,21 @@ class OwnedReadTests(unittest.TestCase):
         self.assertEqual(flags & os.O_ACCMODE, os.O_RDONLY)
         self.assert_closed()
 
+    def test_complete_read_after_previous_metadata_limit(self):
+        self.account.metadata_visits = 20000
+        with patch.object(self.subject.os, 'open', self.recording_open):
+            with patch.object(self.subject.os, 'read', self.recording_read):
+                result = self.read()
+        self.assertEqual(result.data, self.payload)
+        self.assertEqual(result.sha256, hashlib.sha256(self.payload).hexdigest())
+        self.assertEqual(self.account.metadata_visits, 20000 + 2 * (len(self.root.parts) - 1) + 6)
+        self.assertLessEqual(self.account.metadata_visits, 64000)
+        self.assertEqual(self.account.spent_bytes, 4 * len(self.payload))
+        self.assertEqual(self.account.read_bytes, len(self.payload))
+        self.assertEqual(self.reads, [self.payload])
+        self.assertFalse(self.account.stopped)
+        self.assert_closed()
+
     def test_payload_admission_below_at_above(self):
         bound = 255 * 1024 * 1024
         admission = 4 * (len(self.payload) + 1)
@@ -184,20 +199,31 @@ class OwnedReadTests(unittest.TestCase):
                 self.assertTrue(self.account.stopped)
 
     def test_metadata_and_clock_denial_have_no_io(self):
-        for field, value in [('metadata_visits', 20000), ('deadline_ns', 1)]:
+        near_reservation = 64000 - (2 * (len(self.root.parts) - 1) + 6) + 1
+        for field, value in [('metadata_visits', 64000), ('metadata_visits', 64001),
+                             ('metadata_visits', near_reservation), ('deadline_ns', 1)]:
             with self.subTest(field=field):
                 self.account = self.subject._AttemptAccount(
                     self.binding, time.monotonic_ns() + 60_000_000_000, ())
+                self.opens = []
+                self.reads = []
                 setattr(self.account, field, value)
-                with patch.object(self.subject.os, 'open', self.recording_open):
-                    with patch.object(self.subject.os, 'lstat', wraps=os.lstat) as metadata:
-                        with self.assertRaises(self.subject._OwnedReadError):
-                            self.read()
+                with (
+                    patch.object(self.subject.os, 'open', self.recording_open),
+                    patch.object(self.subject.os, 'read', self.recording_read),
+                    patch.object(self.subject.os, 'lstat', wraps=os.lstat) as metadata,
+                    patch.object(self.subject.os, 'fstat', wraps=os.fstat) as descriptor_metadata,
+                    patch.object(self.subject.os, 'stat', wraps=os.stat) as path_metadata,
+                ):
+                    with self.assertRaises(self.subject._OwnedReadError):
+                        self.read()
                 metadata.assert_not_called()
+                descriptor_metadata.assert_not_called()
+                path_metadata.assert_not_called()
                 self.assertEqual(self.opens, [])
+                self.assertEqual(self.reads, [])
                 self.assertEqual(self.account.metadata_visits, value if field == 'metadata_visits' else 0)
                 self.assert_stopped(0)
-
     def test_malformed_inputs_do_not_open(self):
         for field, value in [('spent_bytes', True), ('read_bytes', -1),
                              ('deadline_ns', 2**63), ('secrets', (b'short',)),
