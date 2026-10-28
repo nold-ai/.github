@@ -629,6 +629,63 @@ def _diagnostic_class(error):
     return 'OtherException'
 
 
+def _diagnostic_config_summary(raw):
+    if type(raw) is not bytes:
+        return {'status': 'malformed_type', 'records': []}
+    result = {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(),
+              'status': 'complete', 'records': []}
+    if len(raw) > 16384:
+        result['status'] = 'oversized'
+        return result
+    count = raw.count(b'\0')
+    if count > 48:
+        result['status'] = 'record_overflow'
+        return result
+    if raw == b'':
+        return result
+    if not raw.endswith(b'\0') or count % 3:
+        result['status'] = 'malformed_triples'
+        return result
+    fields = raw.split(b'\0', 48)
+    known = (b'init.defaultbranch', b'core.filemode', b'core.autocrlf',
+             b'core.ignorecase', b'core.logallrefupdates', b'protocol.version',
+             b'protocol.file.allow', b'safe.directory', b'credential.helper',
+             b'core.sshcommand', b'core.hookspath', b'http.extraheader',
+             b'http.proxy', b'https.proxy', b'filter.lfs.required',
+             b'filter.lfs.clean', b'filter.lfs.process', b'filter.lfs.smudge')
+    benign = {b'init.defaultbranch': (b'main', b'master'),
+              b'core.filemode': (b'true', b'false'),
+              b'core.autocrlf': (b'true', b'false', b'input'),
+              b'core.ignorecase': (b'true', b'false'),
+              b'core.logallrefupdates': (b'true', b'false'),
+              b'protocol.version': (b'0', b'1', b'2'),
+              b'protocol.file.allow': (b'never', b'user', b'always'),
+              b'filter.lfs.required': (b'true', b'false')}
+    records = []
+    for index in range(0, count, 3):
+        scope, origin, pair = fields[index:index + 3]
+        key, separator, value = pair.partition(b'\n')
+        if (not scope or not origin or not key or not separator
+                or b'\n' in key or b'\r' in key):
+            result['status'] = 'malformed_record'
+            return result
+        safe_key = key.decode('ascii') if key in known else 'other'
+        safe_scope = scope.decode('ascii') if scope in (
+            b'system', b'global', b'local', b'command') else 'unknown'
+        safe_origin = ('systemfile' if scope == b'system' else 'file') if origin.startswith(b'file:') and len(origin) > 5 else 'unknown'
+        record = {'key': safe_key, 'scope': safe_scope, 'origin': safe_origin,
+                  'value': 'withheld', 'value_code': 'withheld'}
+        if key in benign:
+            if value in benign[key]:
+                record['value'] = value.decode('ascii')
+                record['value_code'] = 'closed_literal'
+            else:
+                record['value_code'] = 'unknown_value'
+        records.append(record)
+    result['records'] = records
+    return result
+
+
 @contextmanager
 def _preparation_exception_observer(results):
     previous = sys.gettrace()
@@ -640,9 +697,12 @@ def _preparation_exception_observer(results):
              'observe', 'identity', 'group_empty', 'drain', 'group_signal', 'config',
              'inventory', 'walk', 'read_file', '_original_r_require', '_original_r_registration')
     codes = set()
+    config_codes = set()
     def collect(code):
         if code.co_name in names:
             codes.add(code)
+            if code.co_name == 'config':
+                config_codes.add(code)
         for value in code.co_consts:
             if type(value) is code_type:
                 collect(value)
@@ -650,9 +710,9 @@ def _preparation_exception_observer(results):
     collect(candidate._original_r_require.__code__)
     collect(candidate._original_r_registration.__wrapped__.__code__)
     events = []
-    overflow = observer_failed = False
+    overflow = observer_failed = config_summary_seen = False
     def observe(frame, event, argument):
-        nonlocal overflow, observer_failed
+        nonlocal overflow, observer_failed, config_summary_seen
         try:
             if not any(frame.f_code is code for code in codes):
                 return None
@@ -683,6 +743,10 @@ def _preparation_exception_observer(results):
                      'last_status': _diagnostic_integer(last.wait_status) if last is not None else None,
                      'last_waitid': ([ _diagnostic_integer(v) for v in last.waitid ] if last is not None and type(last.waitid) is tuple and len(last.waitid) == 3 else None),
                      'last_cleanup': last.cleanup_complete is True if last is not None else None}
+            if (not config_summary_seen and any(frame.f_code is code for code in config_codes)
+                    and 'raw' in local):
+                config_summary_seen = True
+                value['config_summary'] = _diagnostic_config_summary(local['raw'])
             events.append(value)
         except candidate.Deadline:
             observer_failed = True
