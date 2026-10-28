@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'preflight.py': {'bytes': 123782, 'sha256': '612696feb7a1df6268f4d5e70200f993e3bdd935aa2edbe3bf430cf2fbec4aeb'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}}
+EXPECTED = {'preflight.py': {'bytes': 123782, 'sha256': '8527d05ae5bd268c83f17489050fa95e43f7f05cea299f092a3838bbcdc645df'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}}
 
 CAPS = ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
         (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
@@ -158,13 +158,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-fixed-r-preparation-12',
+        'GITHUB_REF': 'refs/heads/codex/dev786-fixed-r-preparation-14',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-fixed-r-preparation-12'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-fixed-r-preparation-14'
     root.mkdir(mode=0o700)
     export = root / 'export'
     export.mkdir(mode=0o700)
