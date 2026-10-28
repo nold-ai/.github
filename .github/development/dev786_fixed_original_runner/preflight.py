@@ -1694,7 +1694,7 @@ def _owned_clock(account: _AttemptAccount) -> None:
 
 def _owned_visit(account: _AttemptAccount) -> None:
     _owned_clock(account)
-    _owned_require(account.metadata_visits < 20000)
+    _owned_require(account.metadata_visits < 64000)
     account.metadata_visits += 1
 
 
@@ -1752,7 +1752,7 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and account.read_bytes <= account.spent_bytes
                        and _owned_integer(account.retained_bytes, 16 * MIB)
                        and _owned_integer(account.retained_members, 64)
-                       and _owned_integer(account.metadata_visits, 20000))
+                       and _owned_integer(account.metadata_visits, 64000))
         _owned_require(type(account.secrets) is tuple and len(account.secrets) <= 32)
         _owned_require(all(type(secret) is bytes and 8 <= len(secret) <= 4096
                            for secret in account.secrets))
@@ -1762,7 +1762,7 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and 1 <= depth <= 64 and len(os.fsencode(name)) <= 4096
                        and os.path.normpath(name) == name
                        and all(part not in ('.', '..') for part in root.path.parts[1:]))
-        _owned_require(account.metadata_visits + 2 * depth + 6 <= 20000)
+        _owned_require(account.metadata_visits + 2 * depth + 6 <= 64000)
         flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
         _owned_clock(account)
         _owned_root_check(account)
@@ -2723,7 +2723,7 @@ def _finish_original15(account, original, published):
                     with os.scandir(directory) as entries:
                         for entry in entries:
                             _proof_final_clock(account)
-                            _proof_require(account.metadata_visits + 2 <= 20000)
+                            _proof_require(account.metadata_visits + 2 <= 64000)
                             account.metadata_visits += 2
                             if entry.is_dir(follow_symlinks=False):
                                 inspect(Path(entry.path), depth + 1)
