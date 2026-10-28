@@ -31,10 +31,12 @@ class FailedPreparationExport(unittest.TestCase):
             command = target._OriginalRGit(('/usr/bin/git', 'config'), 1, 2)
             command.receipt = b'{"reason":"complete","synthetic":true}'
             command.stdout = b'local\0file:.git/config\0extra.test\nSynthetic\0'
-            account.preparation.commands = (command,)
-            account.preparation.metadata_bytes = len(command.receipt) + len(command.stdout)
+            earlier = target._OriginalRGit(('/usr/bin/git', 'ls-files'), 1, 2)
+            earlier.stdout = b'Synthetic earlier captured command\n' * 100000
+            account.preparation.commands = (earlier, command)
+            account.preparation.metadata_bytes = len(earlier.stdout) + len(command.receipt) + len(command.stdout)
             account.live_entered, account.stopped = True, True
-            account.spent_bytes = 255 * target.MIB - 512 * 1024
+            account.spent_bytes = 255 * target.MIB - 65536
             primary = RuntimeError('Synthetic config refusal')
             account.primary_error = primary
             result = target._finish_original15(account, fixtures.failed_original(primary), fixtures.published(True))

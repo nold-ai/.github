@@ -1037,7 +1037,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-24',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-25',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -4022,9 +4022,10 @@ def _finish_original15(account, original, published):
         if account.live_entered and account.stopped:
             preparation = account.preparation
             _proof_require(type(preparation) is _OriginalRPreparation and len(preparation.commands) <= 96)
-            _proof_charge(account, 4 * (preparation.metadata_bytes + 65536))
+            _proof_charge(account, 4 * (sum(len(value) for command in preparation.commands[-1:]
+                                           for value in (command.receipt, command.stdout, command.stderr)) + 256))
             commands = []
-            for command in preparation.commands:
+            for command in preparation.commands[-1:]:
                 _proof_require(type(command) is _OriginalRGit)
                 values = (command.receipt, command.stdout, command.stderr)
                 for value in values:
