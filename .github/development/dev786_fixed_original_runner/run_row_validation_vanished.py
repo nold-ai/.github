@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'preflight.py': {'bytes': 104760, 'sha256': '409c68d9bf2600f89acde015acc57e8884bb5053c15a8d9ea836c8cfae510b76'}, 'test_fixed_rows.py': {'bytes': 36812, 'sha256': '46b75e4cd6f3913c21c1f1cd73a8b22195bf2a12ef737e26bc07f2cb9bbb1111'}, 'test_row_boundaries.py': {'bytes': 40806, 'sha256': '2dee22f47335f87cb6b2fc0aab3776e50f52768510932406d9c7ca92b6320782'}}
+EXPECTED = {'preflight.py': {'bytes': 104760, 'sha256': '3140d9df57df792de3b4e71a70c4e7b6198f2676b0c630be47cf308df5c17fd2'}, 'test_fixed_rows.py': {'bytes': 36812, 'sha256': '3e73ab95883f43c8dac7953e8e963195016eaf8d542d27c2e3a7e4cbb0e913c1'}, 'test_row_boundaries.py': {'bytes': 40806, 'sha256': 'a7628b094fa993b147cbd500f55eabb3a9de848ed17ba63364c3ce2000c861a8'}}
 SELECTED = (('test_fixed_rows.py', 'FixedRows'),
             ('test_row_boundaries.py', 'RowBoundaries'))
 
@@ -160,13 +160,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-fixed-row-validation-09',
+        'GITHUB_REF': 'refs/heads/codex/dev786-fixed-row-validation-15',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-fixed-row-validation-09'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-fixed-row-validation-15'
     root.mkdir(mode=0o700)
     export = root / 'export'
     export.mkdir(mode=0o700)
