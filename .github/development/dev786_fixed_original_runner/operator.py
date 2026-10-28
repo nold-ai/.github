@@ -11,8 +11,8 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'preflight.py': {'bytes': 123782, 'sha256': '8527d05ae5bd268c83f17489050fa95e43f7f05cea299f092a3838bbcdc645df'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'test_shared_r_git.py': {'bytes': 15066, 'sha256': '3a581735d98205ec78cedf35a7ed4476e7d784c10c0af2c99e4e0847e467b14c'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}, 'fixed-r-preparation.yml': {'bytes': 1552, 'sha256': '36917dc7036f7312e824e9ebe7670f2c199bfb09e8d36b6675521ab5f9e751a6'}}
-SELECTED = ('SharedGit.test_api_exact', 'SharedGit.test_api_one_over', 'SharedGit.test_chunk_exact', 'SharedGit.test_chunk_one_over', 'SharedGit.test_receipt_exact', 'SharedGit.test_receipt_one_over')
+EXPECTED = {'preflight.py': {'bytes': 154183, 'sha256': 'd3c9b826ff9510f9f5ca42234c5e675232bbe2151d222f0725336de395ae12fe'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'test_shared_r_git.py': {'bytes': 15066, 'sha256': '3a581735d98205ec78cedf35a7ed4476e7d784c10c0af2c99e4e0847e467b14c'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}, 'fixed-r-preparation.yml': {'bytes': 1556, 'sha256': '3007cb7afb12feed5faddc7dfe03061bba40420cf78ecfb8e07458d74b035f97'}}
+SELECTED = ('SharedGit.test_final_segment_exact', 'SharedGit.test_final_segment_one_over')
 
 CAPS = ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
         (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
@@ -159,13 +159,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-before-16',
+        'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-before-17',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-shared-git-before-16'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-shared-git-before-17'
     root.mkdir(mode=0o700)
     export = root / 'export'
     export.mkdir(mode=0o700)
@@ -173,7 +173,7 @@ def main():
     sources.mkdir(mode=0o700)
     source = Path(__file__).resolve().parent
     source_paths = {
-        'preflight.py': source / 'preflight.py',
+        'preflight.py': source / 'proof-preflight.py',
         'test_prepare_original_r.py': source / 'test_prepare_original_r.py',
         'test_shared_r_git.py': source / 'test_shared_r_git.py',
         'fixed-r-preparation.yml': source.parents[1] / 'workflows' / 'fixed-r-preparation.yml',
@@ -184,7 +184,7 @@ def main():
     runtime_helper = root / 'scripts' / 'late_cycle_admission.py'
     report = {'claim': 'BEFORE_EVIDENCE_ONLY',
               'native_red': False, 'https_production_proof': False, 'readiness': False,
-              'cases': [], 'fixed_group': 'r', 'selected': SELECTED,
+              'cases': [], 'fixed_group': 'proof', 'selected': SELECTED,
               'context': {key: os.environ.get(key) for key in
                           (*expected_context, 'GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_JOB',
                            'GITHUB_WORKSPACE', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA')},
