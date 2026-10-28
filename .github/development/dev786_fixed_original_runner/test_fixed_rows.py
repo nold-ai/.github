@@ -547,6 +547,93 @@ def _row_diagnostic(setup, case_id):
     print(raw)
 
 
+
+def _diagnostic_integer(value):
+    return value if type(value) is int and -(2**63) < value < 2**63 else None
+
+
+def _diagnostic_class(error):
+    allowed = (OSError, FileNotFoundError, PermissionError, ProcessLookupError,
+               ChildProcessError, InterruptedError, BlockingIOError, IsADirectoryError,
+               NotADirectoryError, FileExistsError, TimeoutError, ValueError, IndexError,
+               TypeError, AttributeError, KeyError, RuntimeError, AssertionError)
+    for kind in allowed:
+        if type(error) is kind:
+            return kind.__name__
+    return 'OtherException'
+
+
+@contextmanager
+def _leader_exception_observer(account):
+    previous = sys.gettrace()
+    if previous is not None:
+        raise RuntimeError('diagnostic requires no preexisting tracer')
+    codes = [value for value in runner._run_original_stage.__code__.co_consts
+             if type(value) is type(runner._run_original_stage.__code__)
+             and value.co_name == 'group_empty']
+    if len(codes) != 1:
+        raise RuntimeError('diagnostic group code identity')
+    target = codes[0]
+    event_record = None
+    observer_failed = False
+    def observe(frame, event, argument):
+        nonlocal event_record, observer_failed
+        try:
+            if frame.f_code is not target:
+                return None
+            frame.f_trace_lines = False
+            frame.f_trace_opcodes = False
+            if event != 'exception' or event_record is not None or observer_failed:
+                return observe
+            error = argument[1]
+            proc = type(error) is runner._OriginalRowRefusal and error.args == ('proc',)
+            if not isinstance(error, (OSError, ValueError, IndexError)) and not proc:
+                return observe
+            local = frame.f_locals
+            entry = local.get('entry')
+            name = entry.name if entry is not None else None
+            numeric = (int(name) if type(name) is str and len(name) <= 10
+                       and name.isascii() and name.isdecimal() else None)
+            leader = _diagnostic_integer(local.get('pid'))
+            event_record = {
+                'line': frame.f_lineno,
+                'class': 'ProcRefusal' if proc else _diagnostic_class(error),
+                'errno': _diagnostic_integer(error.errno) if isinstance(error, OSError) else None,
+                'entry_pid': numeric, 'owned_leader_match': numeric == leader if numeric is not None and leader is not None else None,
+                'owned': local.get('owned') is True, 'probing': None,
+                'terminal_present': local.get('terminal') is not None,
+                'metadata_visits': _diagnostic_integer(account.metadata_visits),
+                'read_bytes': _diagnostic_integer(account.read_bytes),
+                'spent_bytes': _diagnostic_integer(account.spent_bytes)}
+        except runner.Deadline:
+            observer_failed = True
+            raise
+        except Exception:
+            observer_failed = True
+            return None
+        return observe
+    try:
+        sys.settrace(observe)
+        yield
+    finally:
+        primary = sys.exception()
+        try:
+            sys.settrace(previous)
+        except BaseException:
+            if primary is None:
+                raise
+        try:
+            raw = json.dumps({'leader_exception': event_record,
+                              'observer_failed': observer_failed}, sort_keys=True).encode()
+            if len(raw) > 4096:
+                raw = b'{"leader_exception":null,"overflow":true}'
+            sys.stdout.write(raw.decode() + '\n')
+            sys.stdout.flush()
+        except BaseException:
+            if primary is None:
+                raise
+
+
 class FixedRows(unittest.TestCase):
     def invoke_linux(self, body):
         if sys.platform != 'linux':
@@ -564,7 +651,11 @@ class FixedRows(unittest.TestCase):
             try:
                 with mock.patch.object(subprocess, 'Popen', record):
                     with ExitStack() as patches:
-                        body(setup, patches)
+                        if self.id().endswith('.FixedRows.test_leader_exits_before_same_group_child_is_cleaned'):
+                            with _leader_exception_observer(setup[0]):
+                                body(setup, patches)
+                        else:
+                            body(setup, patches)
             except BaseException as error:
                 primary = error
                 raise
