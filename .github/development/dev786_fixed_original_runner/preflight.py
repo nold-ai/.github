@@ -2287,7 +2287,6 @@ def _prepare_original_r(account, api):
                 tree_entries[path] = (mode, object_id)
             _original_r_require(tree.endswith(b'\0') and len(tree_entries) <= 20000)
             git('checkout', '--detach', _ORIGINAL_R)
-            inventory()
             config()
             _original_r_require(read_file('.git/HEAD', 41) == (_ORIGINAL_R + '\n').encode()
                                 and read_file('.git/shallow', 41) == (C + '\n').encode())
