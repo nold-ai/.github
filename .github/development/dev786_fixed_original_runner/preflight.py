@@ -11,6 +11,8 @@ import os
 import platform
 import re
 import signal
+import shutil
+from xml.parsers import expat
 import stat
 import sys
 import tempfile
@@ -962,7 +964,7 @@ def restored_acquisition(api, transport, original_shutil):
         public = {'ref': main.get('ref'), 'object': {'type': main.get('object', {}).get('type'),
                                                    'sha': main.get('object', {}).get('sha')}}
         require(public == {'ref': 'refs/heads/main', 'object': {'type': 'commit',
-                'sha': '9f952f1bc591b9d58403a8a362ce9fe21fdfe47d'}}
+                'sha': '640549e62fb3ca001499e71d4cf935aa8c0a0192'}}
                 and public['object']['sha'] != I, 'original main unavailable or changed')
         try:
             api.acquisition.acquire_tool_release(now=datetime.now(timezone.utc), expected_selection=expected(api))
@@ -1025,7 +1027,7 @@ def tool_facts(tool, evidence, policy):
     return value
 
 
-def actual(api, policy, output, rows, fixture):
+def actual(api, policy, output, rows, fixture, account):
     require(sys.platform == 'linux' and platform.machine() == 'x86_64', 'Linux runner required')
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
@@ -1050,6 +1052,10 @@ def actual(api, policy, output, rows, fixture):
         manifest['negative_controls'] = acquisition_negatives(api, rows, fixture, output)
         manifest['adapter_controls'] = adapter_controls(api, rows, fixture)
         mat = api.materialization
+        _check_current_boundary(account, api)
+        prepared = _prepare_original_r(account, api)
+        _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) <= 8 * MIB - 65536)
+        account.phase = _OriginalPhase.PREPARED
         with Timer(1200, mat._private_root.__wrapped__.__code__) as timer:
             transcript = Transcript(rows, fixture, transport, timer)
             with transcript.installed(api.GitHub):
@@ -1057,6 +1063,7 @@ def actual(api, policy, output, rows, fixture):
                     with mat.materialize_native_tool(expected(api), workspace) as tool:
                         timer.check()
                         require(transcript.position == 18 and transcript.real == 14, 'positive transcript incomplete')
+                        _original15(account, prepared, tool, timer)
                         manifest['tool'] = tool_facts(tool, evidence, policy)
                         timer.check()
                         yielded = True
@@ -1066,10 +1073,16 @@ def actual(api, policy, output, rows, fixture):
                 and evidence.command_count == 24 + sum(evidence.source_counts.values()), 'command coverage')
         manifest['outcome'] = 'DEVELOPMENT_MATERIALIZATION_OBSERVED' if evidence.complete else 'EVIDENCE_INCOMPLETE'
     except BaseException as error:
+        if account.primary_error is None:
+            account.primary_error = error
+        account.stopped = True
         manifest['exception'] = exception_facts(error)
         if yielded or not evidence.complete:
             manifest['outcome'] = 'EVIDENCE_INCOMPLETE'
     finally:
+        account.unwound = True
+        if not account.stopped:
+            account.phase = _OriginalPhase.UNWOUND
         signal.setitimer(signal.ITIMER_REAL, 0)
         manifest['cleanup'] = state
         manifest['yielded'] = yielded
@@ -1105,6 +1118,11 @@ def actual(api, policy, output, rows, fixture):
             (evidence.output / 'manifest.json').write_bytes(encoded({
                 'outcome': 'EVIDENCE_INCOMPLETE', 'finalization_failure': type(error).__name__,
                 'cleanup': state, 'collector_read_bytes': evidence.read_bytes, 'restored': manifest['restored']}))
+    account.restored = manifest['restored'] and state.get('deleted', False)
+    try:
+        _check_current_boundary(account, api)
+    except BaseException as error:
+        _proof_failed(account, error)
     return manifest['outcome'] == 'DEVELOPMENT_MATERIALIZATION_OBSERVED' and evidence.complete
 
 
@@ -1260,15 +1278,58 @@ def main():
         print('Benign controls observed. Linux command controls required.' if not result['all_required_controls']
               else 'Benign controls observed, including original Linux command cleanup.')
         return 0
+    original = _OwnerOutcome(_OwnerState.NOT_STARTED, None, None)
+    published = _OwnerOutcome(_OwnerState.NOT_STARTED, None, None)
+    packet = _Original15Packet(False, 'Incomplete', (), (), None)
+    primary = None
+    root_path = output.parent / ('original15-' + os.urandom(12).hex())
+    root = _OwnedRoot(root_path, -1, 0, 0, os.getuid(), stat.S_IFDIR | 0o700)
+    account = _AttemptAccount(root, time.monotonic_ns() + 3600_000_000_000, ())
+    account.policy, account.original_output = policy, output
+    account.export_path = root_path.with_name(root_path.name + '-export')
+    account.api = api
+    actual_started = False
     try:
-        success = actual(api, policy, output, rows, fixture)
+        root_path.mkdir(mode=0o700, exist_ok=False)
+        descriptor = os.open(root_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        account.root = _OwnedRoot(root_path, descriptor, 0, 0, os.getuid(), stat.S_IFDIR | 0o700)
+        value = os.fstat(descriptor)
+        account.root = _OwnedRoot(root_path, descriptor, value.st_dev, value.st_ino, value.st_uid, value.st_mode)
+        secrets = tuple(v.encode() for k, v in os.environ.items()
+                        if re.search(r'TOKEN|SECRET|PASSWORD|CREDENTIAL|COOKIE', k, re.I) and len(v) >= 8)
+        require(len(secrets) <= 32 and all(len(v) <= 4096 for v in secrets), 'secret boundary')
+        account.secrets = secrets
+        if hasattr(api, 'GitHub'):
+            account.saved_transport = api.GitHub._https_get
+            account.saved_materializer = api.materialization.materialize_native_tool
+        actual_started = True
+        original = _OwnerOutcome(_OwnerState.RETURNED,
+                                 actual(api, policy, output, rows, fixture, account), None)
     except BaseException as error:
-        (output / 'actual-failure.json').write_bytes(encoded({
-            'outcome': 'EVIDENCE_INCOMPLETE', 'exception': exception_facts(error)}))
-        raise
+        primary = error
+        if actual_started:
+            original = _OwnerOutcome(_OwnerState.RAISED, None, error)
+        if account.primary_error is None:
+            account.primary_error = error
     finally:
-        export_complete = publish_safe(output)
-    return 0 if success and export_complete else 1
+        try:
+            published = _OwnerOutcome(_OwnerState.RETURNED, publish_safe(output), None)
+        except BaseException as error:
+            published = _OwnerOutcome(_OwnerState.RAISED, None, error)
+            if primary is None:
+                primary = error
+            if account.primary_error is None:
+                account.primary_error = error
+        finally:
+            try:
+                packet = _finish_original15(account, original, published)
+            except BaseException as error:
+                if primary is None:
+                    primary = error
+    if primary is not None:
+        raise primary
+    return 0 if original.value is True and published.value is True and packet.complete else 1
+
 
 
 class _OriginalStage(Enum):
@@ -1334,6 +1395,112 @@ class _SourceRole(Enum):
     REPORT = 'local-red-report.json'
     UNBOUND_REPORT = 'local-red-unbound-report.json'
     RED_SUMMARY = 'local-red-summary.md'
+    SOURCE_00 = 'source-00'
+    SOURCE_01 = 'source-01'
+    SOURCE_02 = 'source-02'
+    SOURCE_03 = 'source-03'
+    SOURCE_04 = 'source-04'
+    SOURCE_05 = 'source-05'
+    SOURCE_06 = 'source-06'
+    SOURCE_07 = 'source-07'
+    SOURCE_08 = 'source-08'
+    SOURCE_09 = 'source-09'
+    SOURCE_10 = 'source-10'
+    SOURCE_11 = 'source-11'
+    SOURCE_12 = 'source-12'
+    SOURCE_13 = 'source-13'
+    SOURCE_14 = 'source-14'
+    SOURCE_15 = 'source-15'
+    SOURCE_16 = 'source-16'
+    SOURCE_17 = 'source-17'
+    SOURCE_18 = 'source-18'
+    SOURCE_19 = 'source-19'
+    SOURCE_20 = 'source-20'
+    SOURCE_21 = 'source-21'
+    SOURCE_22 = 'source-22'
+    SOURCE_23 = 'source-23'
+    SOURCE_24 = 'source-24'
+    SOURCE_25 = 'source-25'
+    SOURCE_26 = 'source-26'
+    SOURCE_27 = 'source-27'
+    SOURCE_28 = 'source-28'
+    SOURCE_29 = 'source-29'
+    SOURCE_30 = 'source-30'
+    SOURCE_31 = 'source-31'
+    SOURCE_32 = 'source-32'
+    SUBJECT_0_REQUIREMENT = 'subject-0-requirement'
+    SUBJECT_0_GITPYTHON = 'subject-0-gitpython'
+    SUBJECT_0_GITDB = 'subject-0-gitdb'
+    SUBJECT_0_SMMAP = 'subject-0-smmap'
+    SUBJECT_0_INIT = 'subject-0-init'
+    SUBJECT_0_BASE = 'subject-0-base'
+    SUBJECT_1_REQUIREMENT = 'subject-1-requirement'
+    SUBJECT_1_GITPYTHON = 'subject-1-gitpython'
+    SUBJECT_1_GITDB = 'subject-1-gitdb'
+    SUBJECT_1_SMMAP = 'subject-1-smmap'
+    SUBJECT_1_INIT = 'subject-1-init'
+    SUBJECT_1_BASE = 'subject-1-base'
+    SUBJECT_2_REQUIREMENT = 'subject-2-requirement'
+    SUBJECT_2_GITPYTHON = 'subject-2-gitpython'
+    SUBJECT_2_GITDB = 'subject-2-gitdb'
+    SUBJECT_2_SMMAP = 'subject-2-smmap'
+    SUBJECT_2_INIT = 'subject-2-init'
+    SUBJECT_2_BASE = 'subject-2-base'
+
+
+_FIXED_SOURCES = (
+    ('P', '.github/scripts/native_requirements_bootstrap.py', '41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4'),
+    ('P', '.github/scripts/native_requirements_acquisition.py', 'eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe'),
+    ('P', '.github/scripts/late_cycle_admission.py', '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'),
+    ('P', '.github/scripts/native_requirements_materialization.py', '029634a7336e5738a369cd1f2a5cbbf1bda1595cfd6564c043c77aceecb0e4bf'),
+    ('P', '.github/native-tools/dev786/build-locked.txt', '928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7'),
+    ('P', '.github/native-tools/dev786/build-requirements.in', 'd419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df'),
+    ('P', '.github/native-tools/dev786/locked.txt', 'a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341'),
+    ('P', '.github/native-tools/dev786/requirements.in', 'fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f'),
+    ('P', '.github/native-tools/dev786/tool-files.json', '969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad'),
+    ('P', '.github/native-tools/dev786/runtime.json', '7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f'),
+    ('R', 'tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
+    ('R', 'tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
+    ('R', 'tests/unit/scripts/test_security_audit_gate.py', '5100ceaa78a4381b8565f5a3c996e8d8b15ceda44d18de9ebcf04eb0561f81a3'),
+    ('R', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 'c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af'),
+    ('R', 'tests/unit/security/test_release_dependency_selection.py', 'f713acdfeba8235bd5f7e2c22b7a29585d61693798972b6e9a24a31423e7a4e6'),
+    ('R', 'scripts/requirements_proof_pytest_plugin.py', '31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8'),
+    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', '6a1f812cc9a0be0adf260cdfb48dda0a5af3c41b5827259459373123861e9e20'),
+    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', 'a5664876536b22616c93489ceb4baacd9ba07515f83216e2441289aaf3606707'),
+    ('R', 'requirements/ci/locked.txt', '0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266'),
+    ('R', 'uv.lock', '850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7'),
+    ('C', 'src/specfact_cli/cli.py', '191b16df14c9875a4f265ed5a6c86f3d3e9888780930cb0ab7b944f7865cac00'),
+    ('C', 'src/specfact_cli/registry/module_packages.py', 'ee47ead2c731d80888f18fa604c3193c54cf43dc7c1513c08fd54063b78e8b9b'),
+    ('C', 'scripts/requirements_proof_executor.py', '1217ad0a1dcee26818c47e68019cb6ce11e2d700d83a260d197c8fbb1c0403bd'),
+    ('C', 'scripts/requirements_proof_provenance.py', '5bad94f58f6741cd070e6e9f98a95c88d412365a437e0499e30545603cd9f846'),
+    ('C', 'scripts/requirements_proof_pytest_plugin.py', '31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8'),
+    ('C', 'ci/module-fixture.lock.json', 'f6ce6abcbe24d27b3f2b3596d5533650198afc61e00de1c662faf7d239679de0'),
+    ('M', 'packages/specfact-requirements/module-package.yaml', '385ccff7adca9639188ce80185456d66b5e3ab90973b02c6f230eef271d1c412'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/__init__.py', '1dd57eb29db513d20619506a9eac55b0f2427a51163113857721159e853ce158'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/__init__.py', '8838258e7a346f9c9006d9ae211aa053b2bd4424827d5e821a7d758864da07f7'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/app.py', '74ac669cb34e040bb6d286ad0d05fdd3dcd014dd0ce99ca3dd5a7957d879de12'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/commands.py', '65350ba69469798ccfd07587e979c3ca1b9c61382dd42ae27f7a02cbe4ba96db'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/evidence.py', 'f5a34c6fa21d6d1c6428d54da1a9b6ce61bee6d2c2d8d190a8751a7eca25bc3e'),
+    ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/lifecycle.py', '9352b1acde9f520e577657b5812e9b129a8b018ddd76113684b829e7b395d654'),
+)
+
+_FIXED_CASES = (
+    ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
+    ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
+    ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
+    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests/unit/security/test_release_dependency_selection.py', 61, ('assert requirement in project["project"]["dependencies"]', 'gitpython>=3.2.1')),
+    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests/unit/security/test_release_dependency_selection.py', 61, ('assert requirement in project["project"]["dependencies"]', 'pycparser>=3.12,!=3.0.*')),
+    ('tests/unit/scripts/test_dependency_compatibility_workflow.py::test_resolver_selection_excludes_only_frozen_release_cases', 'tests.unit.scripts.test_dependency_compatibility_workflow', 'test_resolver_selection_excludes_only_frozen_release_cases', 'tests/unit/scripts/test_dependency_compatibility_workflow.py', 97, ('assert len(deselections) == len(FROZEN_RELEASE_SELECTORS) + 2', 'AssertionError: assert 2 == (7 + 2)')),
+    ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[absolute-metadata]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[absolute-metadata]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
+    ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-metadata]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[git-metadata]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
+    ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-short-name]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[git-short-name]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
+    ('tests/unit/scripts/test_dependency_trust_review.py::test_pycparser_has_current_exact_version_review_record', 'tests.unit.scripts.test_dependency_trust_review', 'test_pycparser_has_current_exact_version_review_record', 'tests/unit/scripts/test_dependency_trust_review.py', 49, ('assert pycparser["version"] == "3.12"', "assert '2.22' == '3.12'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '3.2.0' == '3.2.1'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '26.2' == '26.3'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '2.22' == '3.12'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '1.6.0' == '1.6.1'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '21.11.0' == '21.14.12'")),
+)
 
 
 class _OriginalPhase(Enum):
@@ -1467,6 +1634,21 @@ class _AttemptAccount:
     finish_complete: bool = False
     final_packet: _Original15Packet | None = None
     primary_error: BaseException | None = None
+    api: object | None = None
+    saved_transport: object | None = None
+    saved_materializer: object | None = None
+    restored: bool = False
+    boundary_records: tuple[bytes, ...] = ()
+    direct_results: tuple[_DirectResult, ...] = ()
+    source_roots: tuple[Path, ...] = ()
+    source_before: tuple[_CompleteOwnedRead, ...] = ()
+    source_after: tuple[_CompleteOwnedRead, ...] = ()
+    subjects: tuple[tuple, ...] = ()
+    subject_roots: tuple[Path, ...] = ()
+    tool_identity: tuple[tuple, ...] = ()
+    live_metadata: tuple[bytes, ...] = ()
+    metadata_bytes: int = 0
+    closure_bytes: int = 0
 
 
 @dataclass(frozen=True)
@@ -1552,7 +1734,9 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
     try:
         _owned_require(type(account) is _AttemptAccount)
         _owned_require(type(account.stopped) is bool and not account.stopped)
-        _owned_require(type(role) is _SourceRole and role is _SourceRole.PLAN)
+        _owned_require(type(role) is _SourceRole)
+        if role.name.startswith(('SOURCE_', 'SUBJECT_')):
+            return _read_fixed_source(account, role)
         _owned_require(type(account.root) is _OwnedRoot)
         root = account.root
         _owned_require(type(root.path) is type(Path()))
@@ -1583,8 +1767,8 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
         _owned_clock(account)
         _owned_root_check(account)
         _owned_visit(account)
-        before = _owned_file_identity(os.stat('plan.json', dir_fd=root.descriptor,
-                                              follow_symlinks=False))
+        before = _proof_file_identity(os.stat(role.value, dir_fd=root.descriptor,
+                                              follow_symlinks=False), role)
         size = before.size
         work = (len(account.secrets) + 4) * (size + 1)
         _owned_require(account.spent_bytes + work <= 255 * MIB
@@ -1592,10 +1776,10 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and account.retained_members + 1 <= 64)
         admitted = work
         _owned_clock(account)
-        descriptor = os.open('plan.json', flags, dir_fd=root.descriptor)
+        descriptor = os.open(role.value, flags, dir_fd=root.descriptor)
         try:
             _owned_visit(account)
-            opened = _owned_file_identity(os.fstat(descriptor))
+            opened = _proof_file_identity(os.fstat(descriptor), role)
             _owned_require(opened == before)
             _owned_clock(account)
             data = os.read(descriptor, size + 1)
@@ -1611,12 +1795,12 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                 rb'(?i)(?:authorization\s*:\s*bearer |github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+|X-Amz-Signature=|sig=)',
                 data) is None)
             _owned_visit(account)
-            after = _owned_file_identity(os.fstat(descriptor))
+            after = _proof_file_identity(os.fstat(descriptor), role)
             _owned_require(after == before)
             _owned_root_check(account)
             _owned_visit(account)
-            current = _owned_file_identity(os.stat('plan.json', dir_fd=root.descriptor,
-                                                   follow_symlinks=False))
+            current = _proof_file_identity(os.stat(role.value, dir_fd=root.descriptor,
+                                                   follow_symlinks=False), role)
             _owned_require(current == before)
         finally:
             os.close(descriptor)
@@ -1686,8 +1870,922 @@ def _prepare_original_r(account, api):
 
 
 
+def _proof_require(condition):
+    if not condition:
+        raise _OriginalProofError('Fixed original15 refused')
+
+
+def _proof_failed(account, error):
+    if type(account) is _AttemptAccount:
+        account.stopped = True
+        account.live_complete = False
+        account.phase = _OriginalPhase.FAILED
+        if account.primary_error is None:
+            account.primary_error = error
+
+
+def _proof_final_clock(account):
+    now = time.monotonic_ns()
+    if account.final_started_ns is None:
+        _proof_require(account.final_deadline_ns is None)
+        account.final_started_ns = now
+        account.final_deadline_ns = min(account.deadline_ns, now + 60_000_000_000)
+    _proof_require(type(account.final_deadline_ns) is int
+                   and account.final_deadline_ns <= account.final_started_ns + 60_000_000_000
+                   and now < min(account.deadline_ns, account.final_deadline_ns))
+
+
+def _proof_charge(account, amount, *, closure=False):
+    _proof_require(type(amount) is int and amount >= 0)
+    if account.unwound or account.finish_started:
+        _proof_final_clock(account)
+    else:
+        _owned_clock(account)
+    limit = 256 * MIB if closure else 255 * MIB
+    _proof_require(account.spent_bytes + amount <= limit)
+    if closure:
+        _proof_require(account.closure_bytes + amount <= MIB)
+        account.closure_bytes += amount
+    account.spent_bytes += amount
+
+
+def _proof_safe(account, raw):
+    _proof_require(not any(secret in raw for secret in account.secrets)
+                   and re.search(rb'(?i)(?:authorization\s*:\s*bearer |github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+|X-Amz-Signature=|sig=)', raw) is None)
+
+
+def _proof_file_identity(value, role):
+    if role is not _SourceRole.JUNIT:
+        return _owned_file_identity(value)
+    _owned_require(stat.S_ISREG(value.st_mode) and value.st_uid == os.getuid()
+                   and value.st_nlink == 1 and value.st_mode & 0o077 == 0
+                   and 0 <= value.st_size <= 10 * MIB)
+    return _FileIdentity(value.st_dev, value.st_ino, value.st_mode, value.st_uid,
+                         value.st_gid, value.st_nlink, value.st_size,
+                         value.st_mtime_ns, value.st_ctime_ns)
+
+
+def _read_fixed_source(account, role):
+    if role.name.startswith('SOURCE_'):
+        index = int(role.name.removeprefix('SOURCE_'))
+        label, relative, expected_digest = _FIXED_SOURCES[index]
+        _proof_require(len(account.source_roots) == 4 and not account.stopped)
+        root = account.source_roots[('P', 'C', 'M', 'R').index(label)]
+    else:
+        _, number, member = role.name.split('_')
+        _proof_require(len(account.subject_roots) == 3 and not account.stopped)
+        root = account.subject_roots[int(number)]
+        relative = {'REQUIREMENT': 'gitpython.txt',
+                    'GITPYTHON': 'delivery-package/gitpython-3.2.0.dist-info/METADATA',
+                    'GITDB': 'delivery-package/gitdb-4.0.12.dist-info/METADATA',
+                    'SMMAP': 'delivery-package/smmap-5.0.3.dist-info/METADATA',
+                    'INIT': 'delivery-package/git/__init__.py',
+                    'BASE': 'delivery-package/git/objects/submodule/base.py'}[member]
+        expected_digest = None
+    _proof_require(root.is_absolute() and root.resolve(strict=True) == root)
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    parents = [descriptor]
+    try:
+        for part in relative.split('/')[:-1]:
+            _owned_visit(account)
+            descriptor = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            parents.append(descriptor)
+        name = relative.split('/')[-1]
+        def identity(value):
+            _proof_require(stat.S_ISREG(value.st_mode) and value.st_uid == os.getuid()
+                           and value.st_nlink >= 1
+                           and (role.name.startswith('SUBJECT_') or value.st_nlink == 1)
+                           and not value.st_mode & 0o022
+                           and 0 <= value.st_size <= 4 * MIB)
+            return _FileIdentity(value.st_dev, value.st_ino, value.st_mode, value.st_uid,
+                                 value.st_gid, value.st_nlink, value.st_size,
+                                 value.st_mtime_ns, value.st_ctime_ns)
+        _owned_visit(account)
+        before = identity(os.stat(name, dir_fd=descriptor, follow_symlinks=False))
+        _proof_require(account.retained_bytes + before.size <= 16 * MIB)
+        _proof_charge(account, (len(account.secrets) + 4) * (before.size + 1))
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+        try:
+            _owned_visit(account)
+            opened = identity(os.fstat(fd))
+            _proof_require(opened == before)
+            raw = os.read(fd, before.size + 1)
+            account.read_bytes += len(raw)
+            _proof_require(len(raw) == before.size)
+            _proof_safe(account, raw)
+            _owned_visit(account)
+            after = identity(os.fstat(fd))
+            _owned_visit(account)
+            current = identity(os.stat(name, dir_fd=descriptor, follow_symlinks=False))
+            _proof_require(before == opened == after == current and (expected_digest is None or sha(raw) == expected_digest))
+        finally:
+            os.close(fd)
+        _owned_clock(account)
+        account.retained_bytes += len(raw)
+        return _CompleteOwnedRead(role, raw, sha(raw), before, opened, after, current)
+    finally:
+        for fd in reversed(parents):
+            os.close(fd)
+
+
+def _junit_original15(account, member):
+    try:
+        _proof_require(not account.stopped and type(member) is _CompleteOwnedRead
+                       and member.role is _SourceRole.JUNIT
+                       and member.before == member.opened == member.after == member.current
+                       and member.before.size == len(member.data))
+        _proof_charge(account, 8 * (len(member.data) + 1))
+        _proof_require(sha(member.data) == member.sha256)
+        parser = expat.ParserCreate()
+        stack, cases = [], []
+        elements = 0
+        current = None
+        suite_seen = False
+        root_seen = False
+        def forbidden(*args):
+            raise _OriginalProofError('Fixed XML declaration refused')
+        def declaration(version, encoding, standalone):
+            _proof_require(version == '1.0' and encoding == 'utf-8' and standalone == -1)
+        def start(name, attrs):
+            nonlocal elements, current, suite_seen, root_seen
+            elements += 1
+            _proof_require(elements <= 20000 and len(stack) < 32 and len(attrs) <= 32
+                           and all(len(k.encode()) <= 4096 and len(v.encode()) <= 4096
+                                   for k, v in attrs.items()))
+            parent = stack[-1] if stack else None
+            if name == 'testsuites':
+                _proof_require(parent is None and not root_seen)
+                root_seen = True
+            elif name == 'testsuite':
+                _proof_require(parent == 'testsuites' and not suite_seen
+                               and attrs.get('name') == 'pytest'
+                               and all(attrs.get(k) == v for k, v in
+                                       (('tests', '15'), ('failures', '15'), ('errors', '0'), ('skipped', '0'))))
+                suite_seen = True
+            elif name == 'testcase':
+                _proof_require(parent == 'testsuite' and current is None and len(cases) < 15)
+                current = {'attrs': attrs, 'properties': {}, 'failure': [], 'message': None, 'groups': 0}
+            elif name == 'properties':
+                _proof_require(parent == 'testcase' and current['groups'] == 0)
+                current['groups'] += 1
+            elif name == 'property':
+                _proof_require(parent == 'properties' and set(attrs) == {'name', 'value'}
+                               and attrs['name'] not in current['properties'] and attrs['value'])
+                current['properties'][attrs['name']] = attrs['value']
+            elif name == 'failure':
+                _proof_require(parent == 'testcase' and current['message'] is None)
+                current['message'] = attrs.get('message', '')
+            elif name in ('system-out', 'system-err'):
+                _proof_require(parent in ('testcase', 'testsuite'))
+            else:
+                forbidden()
+            stack.append(name)
+        def end(name):
+            nonlocal current
+            _proof_require(stack and stack.pop() == name)
+            if name == 'testcase':
+                cases.append(current)
+                current = None
+        def data(text):
+            if stack and stack[-1] == 'failure':
+                current['failure'].append(text)
+            elif stack and stack[-1] not in ('system-out', 'system-err'):
+                _proof_require(not text.strip())
+        parser.StartElementHandler, parser.EndElementHandler = start, end
+        parser.CharacterDataHandler = data
+        parser.XmlDeclHandler = declaration
+        parser.StartDoctypeDeclHandler = forbidden
+        parser.EntityDeclHandler = forbidden
+        parser.ExternalEntityRefHandler = forbidden
+        parser.ProcessingInstructionHandler = forbidden
+        parser.Parse(member.data, True)
+        _proof_require(root_seen and suite_seen and not stack and len(cases) == 15)
+        for case, expected_case in zip(cases, _FIXED_CASES):
+            selector, classname, name, source, line, markers = expected_case
+            _proof_require(case['attrs'].get('classname') == classname and case['attrs'].get('name') == name
+                           and case['properties'] == {'specfact.selector': selector, 'specfact.runner': 'pytest',
+                               'specfact.python': '3.12.15', 'specfact.pytest': '9.1.1'}
+                           and case['message'] is not None and 'AssertionError' in case['message'])
+            body = ''.join(case['failure'])
+            lines = [part.strip() for part in body.splitlines() if part.strip()]
+            _proof_require(lines and lines[-1] == f'{source}:{line}: AssertionError'
+                           and 'AssertionError' in body and all(marker in body for marker in markers))
+        _owned_clock(account)
+        return _Junit15Facts(tuple(case[0] for case in _FIXED_CASES), 15, 0, 0, 0,
+                             (('runner', 'pytest'), ('python', '3.12.15'), ('pytest', '9.1.1')))
+    except BaseException as error:
+        _proof_failed(account, error)
+        raise _OriginalProofError('Fixed original15 XML refused') from None
+
+
+def _check_products(account, stage):
+    try:
+        _proof_require(type(account) is _AttemptAccount and not account.stopped
+                       and type(stage) is _OriginalStage)
+        products = account.products
+        def parsed(member):
+            _proof_charge(account, 5 * (len(member.data) + 1))
+            return sys.modules['late_cycle_admission'].json_object(member.data)
+        if stage is _OriginalStage.PLANNER:
+            _proof_require(products.plan is None and products.planning_report is None)
+            plan = _read_owned(account, _SourceRole.PLAN)
+            report = _read_owned(account, _SourceRole.PLANNING_REPORT)
+            _proof_require(plan.sha256 == '8d24130f0cb8bfb70bd9f6d157b646cad15a210af3b93609b64582bf11d53900'
+                           and report.sha256 == '7da297b8feb57bb9b813f6b5336d9bfa0d8a3303e7dcb61b8613619ead4d4fbb')
+            parsed(plan)
+            parsed(report)
+            summary = _read_owned(account, _SourceRole.PLANNING_SUMMARY)
+            products.plan, products.planning_report, products.planning_summary = plan, report, summary
+        elif stage is _OriginalStage.EXECUTOR:
+            _proof_require(products.plan is not None and products.junit is None)
+            member = _read_owned(account, _SourceRole.JUNIT)
+            facts = _junit_original15(account, member)
+            products.junit, products.junit_facts = member, facts
+        elif stage is _OriginalStage.RECONCILER:
+            _proof_require(products.junit_facts is not None and products.unbound_report is None)
+            member = _read_owned(account, _SourceRole.REPORT)
+            report = parsed(member)
+            proof = report['execution_proof']
+            _proof_require(proof['junit_digest'] == 'sha256:' + products.junit.sha256)
+            proof['junit_digest'] = 'sha256:' + '0' * 64
+            normalized = encoded(report)
+            _proof_require(sha(normalized) == '245a767e3054d1fbfe0a05c533be971d6adccb309fd330904554831a20a57690')
+            _proof_charge(account, len(member.data))
+            _proof_require(account.retained_bytes + len(member.data) <= 16 * MIB)
+            _owned_root_check(account)
+            fd = os.open(_SourceRole.UNBOUND_REPORT.value,
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600,
+                         dir_fd=account.root.descriptor)
+            try:
+                _proof_require(os.write(fd, member.data) == len(member.data))
+            finally:
+                os.close(fd)
+            account.retained_bytes += len(member.data)
+            frozen = _read_owned(account, _SourceRole.UNBOUND_REPORT)
+            _proof_charge(account, len(member.data))
+            _proof_require(frozen.data == member.data)
+            summary = _read_owned(account, _SourceRole.RED_SUMMARY)
+            products.unbound_report, products.red_summary = frozen, summary
+        else:
+            _proof_require(products.unbound_report is not None and products.bound_report is None)
+            member = _read_owned(account, _SourceRole.REPORT)
+            bound, original = parsed(member), parsed(products.unbound_report)
+            proof = bound['execution_proof']
+            additions = {'source_tree': 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e', 'merge_base': C,
+                         'test_file_digests': {path: 'sha256:' + digest for label, path, digest in _FIXED_SOURCES
+                                               if label == 'R' and path.startswith('tests/')},
+                         'toolchain_identity': {'runner': 'pytest', 'python': '3.12.15', 'pytest': '9.1.1'}}
+            for key, expected_value in additions.items():
+                _proof_require(key not in original['execution_proof'] and proof.pop(key) == expected_value)
+            _proof_require(bound == original)
+            products.bound_report = member
+    except BaseException as error:
+        _proof_failed(account, error)
+        raise _OriginalProofError('Fixed original15 products refused') from None
+
+
+def _check_current_boundary(account, api):
+    try:
+        _proof_require(type(account) is _AttemptAccount and not account.stopped)
+        if account.unwound:
+            _proof_final_clock(account)
+        expiry = datetime(2026, 11, 4, 23, tzinfo=timezone.utc)
+        _proof_require(datetime.now(timezone.utc) < expiry)
+        _proof_require((account.boundary_after if account.unwound else account.boundary_before) is None)
+        if account.saved_transport is not None:
+            _proof_require(api.GitHub._https_get is account.saved_transport)
+        client = api.GitHub()
+        if account.saved_transport is not None:
+            _proof_require(client._https_get.__func__ is account.saved_transport)
+        policy_main = '640549e62fb3ca001499e71d4cf935aa8c0a0192'
+        paths = ('/repos/nold-ai/.github', '/repos/nold-ai/specfact-cli',
+                 '/repos/nold-ai/.github/git/ref/heads/main',
+                 '/repos/nold-ai/.github/git/commits/' + policy_main,
+                 '/repos/nold-ai/specfact-cli/git/ref/heads/main',
+                 '/repos/nold-ai/specfact-cli/git/ref/heads/dev')
+        values, records = [], []
+        for path in paths:
+            _proof_charge(account, 0)
+            _proof_require(account.spent_bytes + (len(account.secrets) + 3) * 4 * MIB <= 255 * MIB)
+            raw = client.get(path)
+            _proof_require(type(raw) is bytes)
+            account.read_bytes += len(raw)
+            _proof_charge(account, (len(account.secrets) + 3) * len(raw))
+            _proof_require(len(raw) <= 4 * MIB and account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) + len(raw) <= 8 * MIB - 65536)
+            _proof_safe(account, raw)
+            values.append(sys.modules['late_cycle_admission'].json_object(raw))
+            records.append(raw)
+            account.metadata_bytes += len(raw)
+        for value, name, number in zip(values[:2], ('nold-ai/.github', 'nold-ai/specfact-cli'),
+                                       (1110267669, 1085706003)):
+            _proof_require(type(value.get('id')) is int and value['id'] == number
+                           and value.get('full_name') == name and value['owner'].get('login') == 'nold-ai'
+                           and type(value['owner'].get('id')) is int and value['owner']['id'] == 225190663)
+        for value, branch, commit in ((values[2], 'main', policy_main),
+                                      (values[4], 'main', '5262efb0881e4fac7697d629b0530250342bc656'),
+                                      (values[5], 'dev', C)):
+            _proof_require(value.get('ref') == 'refs/heads/' + branch
+                           and value['object'].get('type') == 'commit' and value['object'].get('sha') == commit)
+        commit = values[3]
+        parents = ('9f952f1bc591b9d58403a8a362ce9fe21fdfe47d', P)
+        tree = '2d27c800651b3e1b30d46078594a61937410f4cc'
+        _proof_require(commit.get('sha') == policy_main and commit['tree'].get('sha') == tree
+                       and tuple(p['sha'] for p in commit['parents']) == parents
+                       and type(commit.get('verification')) is dict)
+        _proof_require(datetime.now(timezone.utc) < expiry)
+        _proof_charge(account, 0)
+        facts = _BoundaryFacts(policy_main, parents, tree, values[4]['object']['sha'], values[5]['object']['sha'])
+        if account.unwound:
+            account.boundary_after = facts
+        else:
+            account.boundary_before = facts
+        account.boundary_records += tuple(records)
+        return facts
+    except BaseException as error:
+        _proof_failed(account, error)
+        raise _OriginalProofError('Fixed current boundary refused') from None
+
+
+def _verify_original_r_live(account, prepared, tool, timer):
+    raise NotImplementedError('Fixed live R verification awaits shared preparation owner integration')
+
+
 def _original15(account, prepared, tool, timer):
-    raise _OriginalProofNotImplemented('NEW fixed original15 proof and join is not implemented')
+    saved_umask = None
+    try:
+        _proof_require(type(account) is _AttemptAccount and not account.stopped
+                       and account.phase is _OriginalPhase.PREPARED and not account.live_entered
+                       and type(prepared) is _PreparedOriginalR
+                       and type(account.preparation) is _OriginalRPreparation and account.preparation.complete
+                       and account.boundary_before is not None and account.api is not None
+                       and account.api.materialization.materialize_native_tool is account.saved_materializer
+                       and type(tool) is account.api.materialization.NativeTool)
+        account.live_entered = True
+        account.phase = _OriginalPhase.IN_ROWS
+        owner_end = timer.end
+        def safe_point():
+            timer.check()
+            _proof_require(not account.stopped and not timer.pending and not timer.expired
+                           and timer.end == owner_end and time.monotonic() < owner_end)
+            _owned_clock(account)
+        safe_point()
+        _proof_require(prepared.root == account.preparation.root.path
+                       and prepared.out == account.root.path and prepared.home == account.preparation.home.path
+                       and prepared.tmp == account.preparation.tmp.path
+                       and prepared.commit == '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+                       and prepared.parent == C and prepared.tree == 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
+                       and prepared.parent_tree == '24112d8c9983333f9059283965230348f718b74c'
+                       and prepared.raw_commit_sha256 == '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
+                       and prepared.sources == tuple((path, digest) for label, path, digest in _FIXED_SOURCES if label == 'R'))
+        account.source_roots = (account.policy, tool.core_root, tool.modules_root, prepared.root)
+        def sources():
+            for name in MODULES:
+                module = sys.modules[name]
+                expected_path = account.policy / '.github/scripts' / (name + '.py')
+                _proof_require(module.__file__ == str(expected_path) and module.__spec__.origin == str(expected_path)
+                               and expected_path.resolve(strict=True) == expected_path)
+            return tuple(_read_owned(account, _SourceRole[f'SOURCE_{i:02d}']) for i in range(33))
+        account.source_before = sources()
+        def caches():
+            records = []
+            for label, root in zip(('C', 'M', 'R'), account.source_roots[1:]):
+                def walk(directory, depth, in_cache=False):
+                    _proof_require(depth <= 64)
+                    with os.scandir(directory) as entries:
+                        for entry in entries:
+                            safe_point()
+                            _owned_visit(account)
+                            if entry.is_dir(follow_symlinks=False):
+                                if entry.name != '.git':
+                                    walk(Path(entry.path), depth + 1,
+                                         in_cache or entry.name in ('__pycache__', '.pytest_cache'))
+                            elif in_cache or entry.name.endswith('.pyc'):
+                                _proof_require(entry.is_file(follow_symlinks=False))
+                                value = entry.stat(follow_symlinks=False)
+                                _proof_require(value.st_size <= 8 * MIB and value.st_uid == os.getuid())
+                                _proof_charge(account, 2 * (value.st_size + 1))
+                                fd = os.open(entry.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                                try:
+                                    before = os.fstat(fd)
+                                    _proof_require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                                                   == (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns))
+                                    raw = os.read(fd, value.st_size + 1)
+                                    account.read_bytes += len(raw)
+                                    after = os.fstat(fd)
+                                    _proof_require(len(raw) == value.st_size
+                                                   and (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                                                   == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns))
+                                finally:
+                                    os.close(fd)
+                                records.append((label, str(Path(entry.path).relative_to(root)), len(raw), sha(raw)))
+                walk(root, 0)
+            raw = encoded(records)
+            _proof_charge(account, len(raw))
+            _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) + len(raw) <= 8 * MIB - 65536)
+            account.metadata_bytes += len(raw)
+            return raw
+        account.live_metadata += (caches(),)
+        source_raw = {m.role: m.data for m in account.source_before}
+        pins = {}
+        for index in (4, 6):
+            for package, version in re.findall(rb'^([A-Za-z0-9_.-]+)==([^\s;]+)',
+                                                source_raw[_SourceRole[f'SOURCE_{index:02d}']], re.M):
+                name = re.sub(rb'[-_.]+', b'-', package).lower().decode()
+                version = version.decode()
+                _proof_require(name not in pins or pins[name] == version)
+                pins[name] = version
+        _proof_require(len(pins) == 57 and tool.inventory == tuple(sorted(pins.items()))
+                       and pins['gitpython'] == '3.2.1' and pins['pytest'] == '9.1.1'
+                       and tool.manifest_sha256 == RELEASE['tool-files.json']
+                       and tool.runtime_descriptor_sha256 == RELEASE['runtime.json'])
+        _proof_charge(account, 5 * len(source_raw[_SourceRole.SOURCE_09]))
+        descriptor = sys.modules['late_cycle_admission'].json_object(source_raw[_SourceRole.SOURCE_09])
+        diagnostics = dict(tool.diagnostic_identity)
+        _proof_require(len(diagnostics) == len(tool.diagnostic_identity)
+                       and diagnostics['core.commit'] == C
+                       and diagnostics['core.tree'] == '24112d8c9983333f9059283965230348f718b74c'
+                       and diagnostics['modules.commit'] == M
+                       and diagnostics['modules.tree'] == '5d0b8e66c6cd467e6b1ad9d582e24c66b907e205')
+        _proof_require(tool.python.name == 'python' and tool.python.parent.name == 'bin'
+                       and tool.site_packages == tool.python.parent.parent / 'lib/python3.12/site-packages'
+                       and tool.site_packages.resolve(strict=True) == tool.site_packages
+                       and shutil.which('uv', path=str(tool.uv.parent) + ':/usr/bin:/bin') == str(tool.uv))
+        git = Path(shutil.which('git', path='/usr/bin:/bin')).resolve(strict=True)
+        _proof_require(diagnostics['git_path'] == str(git)
+                       and re.fullmatch(r'git version \d+\.\d+[^\r\n]*', diagnostics['git_version']) is not None)
+        binary_rows = []
+        for role, spelling in (('python', tool.python), ('uv', tool.uv), ('gh', tool.gh), ('git', git)):
+            safe_point()
+            resolved = spelling.resolve(strict=True)
+            _owned_visit(account)
+            before = resolved.lstat()
+            fields = lambda v: (v.st_dev, v.st_ino, v.st_mode, v.st_uid, v.st_gid,
+                                v.st_nlink, v.st_size, v.st_mtime_ns, v.st_ctime_ns)
+            _proof_require(stat.S_ISREG(before.st_mode) and before.st_mode & 0o111
+                           and not before.st_mode & 0o022 and 0 < before.st_size <= 64 * MIB)
+            _proof_charge(account, 2 * before.st_size)
+            fd = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            digest, total = hashlib.sha256(), 0
+            try:
+                _owned_visit(account)
+                _proof_require(fields(os.fstat(fd)) == fields(before))
+                while total < before.st_size:
+                    safe_point()
+                    raw = os.read(fd, min(65536, before.st_size - total))
+                    account.read_bytes += len(raw)
+                    _proof_require(bool(raw))
+                    total += len(raw)
+                    digest.update(raw)
+                _owned_visit(account)
+                _proof_require(fields(os.fstat(fd)) == fields(before))
+            finally:
+                os.close(fd)
+            _owned_visit(account)
+            _proof_require(fields(resolved.lstat()) == fields(before))
+            expected_digest = diagnostics['git_sha256'] if role == 'git' else descriptor['assets'][role]['binary_sha256']
+            _proof_require(digest.hexdigest() == expected_digest)
+            if role != 'git':
+                _proof_require(diagnostics[role + '.binary_sha256'] == expected_digest)
+            binary_rows.append((role, str(spelling), str(resolved), expected_digest, fields(before)))
+        account.tool_identity = tuple(binary_rows)
+        vectors = _original_vectors(tool, prepared)
+        _proof_require(len(vectors) == 4 and tuple(v.stage for v in vectors) == tuple(_OriginalStage)
+                       and tuple(v.expected_exit for v in vectors) == (0, 1, 0, 0)
+                       and tuple(v.seconds for v in vectors) == (120, 660, 120, 120))
+        _verify_original_r_live(account, prepared, tool, timer)
+        safe_point()
+        saved_umask = os.umask(0o077)
+        for vector in vectors:
+            safe_point()
+            _proof_require(len(account.direct_results) == list(_OriginalStage).index(vector.stage))
+            result = _run_original_stage(account, tool, prepared, timer, vector.stage)
+            safe_point()
+            _proof_require(type(result) is _DirectResult and account.last_direct is result
+                           and result.stage is vector.stage and result.vector == vector
+                           and result.cleanup_complete and not result.deadline_seen
+                           and result.waitid is not None and result.waitid[1:] == (os.CLD_EXITED, vector.expected_exit)
+                           and result.wait_status is not None and os.WIFEXITED(result.wait_status)
+                           and os.WEXITSTATUS(result.wait_status) == vector.expected_exit
+                           and result.started <= result.ended < result.deadline <= owner_end)
+            account.direct_results += (result,)
+            _check_products(account, vector.stage)
+            if vector.stage is _OriginalStage.EXECUTOR:
+                _capture_original_subjects(account, prepared)
+            safe_point()
+        account.source_after = sources()
+        _proof_require(tuple((m.role, m.sha256, m.before) for m in account.source_before)
+                       == tuple((m.role, m.sha256, m.before) for m in account.source_after))
+        for role, spelling, resolved, digest, identity in account.tool_identity:
+            safe_point()
+            _owned_visit(account)
+            _proof_require(str(Path(spelling).resolve(strict=True)) == resolved
+                           and fields(Path(resolved).lstat()) == identity)
+        _proof_require(tool.inventory == tuple(sorted(pins.items())))
+        _verify_original_r_live(account, prepared, tool, timer)
+        safe_point()
+        account.live_metadata += (caches(),)
+        account.live_metadata += (encoded({'binary_identities': account.tool_identity,
+                                          'inventory': tool.inventory,
+                                          'native_subject_distinction': 'Native GitPython 3.2.1; three original targets 3.2.0'}),)
+        _proof_charge(account, len(account.live_metadata[-1]))
+        account.metadata_bytes += len(account.live_metadata[-1])
+        _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) <= 8 * MIB - 65536)
+        account.live_complete = True
+        account.phase = _OriginalPhase.LIVE_COMPLETE
+    except BaseException as error:
+        _proof_failed(account, error)
+        raise _OriginalProofError('Fixed original15 live proof refused') from None
+    finally:
+        if saved_umask is not None:
+            os.umask(saved_umask)
+
+
+def _capture_original_subjects(account, prepared):
+    _proof_require(not account.subject_roots and not account.subjects)
+    roots = []
+    with os.scandir(prepared.tmp) as entries:
+        for entry in entries:
+            _owned_visit(account)
+            if entry.name.startswith('pytest-of-'):
+                _proof_require(entry.is_dir(follow_symlinks=False))
+                roots.append(Path(entry.path))
+    _proof_require(len(roots) == 1)
+    sessions = []
+    with os.scandir(roots[0]) as entries:
+        for entry in entries:
+            _owned_visit(account)
+            if re.fullmatch(r'pytest-\d+', entry.name):
+                _proof_require(entry.is_dir(follow_symlinks=False))
+                sessions.append(Path(entry.path))
+    _proof_require(len(sessions) == 1)
+    prefix = 'test_submodule_creation_validates_checkout_before_clone'[:30]
+    cases = {}
+    with os.scandir(sessions[0]) as entries:
+        for entry in entries:
+            _owned_visit(account)
+            if re.fullmatch(re.escape(prefix) + r'\d+', entry.name):
+                _proof_require(entry.is_dir(follow_symlinks=False))
+                cases[entry.name] = Path(entry.path)
+    _proof_require(set(cases) == {prefix + str(i) for i in range(3)})
+    account.subject_roots = tuple(cases[prefix + str(i)] for i in range(3))
+    locked = next(member.data for member in account.source_before if member.role is _SourceRole.SOURCE_18).decode()
+    requirement = ''
+    for package in ('gitdb', 'gitpython', 'smmap'):
+        entries = re.findall(rf'(?m)^{package}==([^\s]+) \\\n((?:[ \t]+--hash=sha256:[0-9a-f]{{64}}(?: \\)?\n)+)', locked)
+        _proof_require(len(entries) == 1)
+        version, hashes = entries[0]
+        requirement += f'{package}=={version} \\\n{hashes}'
+    records = []
+    for index in range(3):
+        members = tuple(_read_owned(account, _SourceRole[f'SUBJECT_{index}_{name}'])
+                        for name in ('REQUIREMENT', 'GITPYTHON', 'GITDB', 'SMMAP', 'INIT', 'BASE'))
+        _proof_require(members[0].data == requirement.encode())
+        for member, name, version in zip(members[1:4], ('gitpython', 'gitdb', 'smmap'), ('3.2.0', '4.0.12', '5.0.3')):
+            _proof_charge(account, 3 * len(member.data))
+            text = member.data.decode('utf-8')
+            names = re.findall(r'^Name: (.+)$', text, re.M)
+            versions = re.findall(r'^Version: (.+)$', text, re.M)
+            _proof_require(len(names) == 1 and re.sub('[-_.]+', '-', names[0]).lower() == name
+                           and versions == [version])
+        records.append((index, str(account.subject_roots[index]), requirement,
+                        tuple((member.role.name, len(member.data), member.sha256, asdict(member.before))
+                              for member in members),
+                        (('gitpython', '3.2.0'), ('gitdb', '4.0.12'), ('smmap', '5.0.3'))))
+    account.subjects = tuple(records)
+
+
+def _finish_original15(account, original, published):
+    _proof_require(type(account) is _AttemptAccount and not account.finish_started)
+    account.finish_started = True
+    diagnostics, cleanup = [], []
+    export_fd = footer_fd = None
+    footer_started = False
+    complete = False
+    files = []
+    def fault(code, error=None):
+        nonlocal complete
+        complete = False
+        account.stopped = True
+        account.live_complete = False
+        if code not in diagnostics and len(diagnostics) < 24:
+            diagnostics.append(code)
+        if error is not None and account.primary_error is None:
+            account.primary_error = error
+    def owner_valid(outcome):
+        return (type(outcome) is _OwnerOutcome and
+                ((outcome.state is _OwnerState.NOT_STARTED and outcome.value is None and outcome.error is None)
+                 or (outcome.state is _OwnerState.RETURNED and type(outcome.value) is bool and outcome.error is None)
+                 or (outcome.state is _OwnerState.RAISED and outcome.value is None
+                     and isinstance(outcome.error, BaseException))))
+    def footer(value):
+        raw = encoded(value)
+        _proof_require(len(raw) <= 65536)
+        _proof_charge(account, (len(account.secrets) + 2) * len(raw), closure=True)
+        _proof_safe(account, raw)
+        return raw
+    try:
+        _proof_final_clock(account)
+        _proof_require(owner_valid(original) and owner_valid(published))
+        if account.primary_error is None:
+            account.primary_error = original.error or published.error
+        _proof_require(account.export_path is not None and account.original_output is not None
+                       and account.export_path.parent == account.root.path.parent
+                       and account.export_path not in (account.original_output, account.root.path)
+                       and account.export_path.parent.resolve(strict=True) == account.export_path.parent)
+        account.export_path.mkdir(mode=0o700, exist_ok=False)
+        export_fd = os.open(account.export_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        export_identity = os.fstat(export_fd)
+        current = account.export_path.lstat()
+        _proof_require((current.st_dev, current.st_ino) == (export_identity.st_dev, export_identity.st_ino)
+                       and current.st_uid == os.getuid() and current.st_mode == stat.S_IFDIR | 0o700)
+        footer_fd = os.open('closure.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                            0o600, dir_fd=export_fd)
+        raw = footer({'complete': False, 'outcome': 'Incomplete', 'cleanup': []})
+        _proof_require(os.write(footer_fd, raw) == len(raw))
+        footer_started = True
+        if published.state is _OwnerState.RETURNED and published.value is True:
+            account.old_join = _OriginalJoinFacts(False, 0, 0, ())
+            old_fd = None
+            try:
+                _proof_final_clock(account)
+                old_path = account.original_output / 'export'
+                _proof_require(old_path.resolve(strict=True) == old_path)
+                old_fd = os.open(old_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                old_identity = os.fstat(old_fd)
+                _proof_require(stat.S_ISDIR(old_identity.st_mode) and old_identity.st_uid == os.getuid()
+                               and not old_identity.st_mode & 0o077)
+                def read_member(name, limit, keep=False):
+                    _proof_final_clock(account)
+                    _owned_visit(account)
+                    before = os.stat(name, dir_fd=old_fd, follow_symlinks=False)
+                    _proof_require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+                                   and before.st_nlink == 1 and not before.st_mode & 0o022
+                                   and 0 <= before.st_size <= limit)
+                    _proof_charge(account, (len(account.secrets) + 3) * (before.st_size + 1))
+                    fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=old_fd)
+                    identity = lambda v: (v.st_dev, v.st_ino, v.st_mode, v.st_uid, v.st_gid,
+                                          v.st_nlink, v.st_size, v.st_mtime_ns, v.st_ctime_ns)
+                    total, digest, chunks, tail = 0, hashlib.sha256(), [], b''
+                    try:
+                        _owned_visit(account)
+                        _proof_require(identity(os.fstat(fd)) == identity(before))
+                        while total < before.st_size:
+                            _proof_final_clock(account)
+                            chunk = os.read(fd, min(65536, before.st_size - total))
+                            account.read_bytes += len(chunk)
+                            _proof_require(bool(chunk))
+                            total += len(chunk)
+                            digest.update(chunk)
+                            _proof_charge(account, (len(account.secrets) + 2) * len(tail))
+                            _proof_safe(account, tail + chunk)
+                            tail = (tail + chunk)[-8192:]
+                            if keep:
+                                chunks.append(chunk)
+                        _owned_visit(account)
+                        _proof_require(identity(os.fstat(fd)) == identity(before))
+                        _owned_visit(account)
+                        _proof_require(identity(os.stat(name, dir_fd=old_fd, follow_symlinks=False)) == identity(before))
+                    finally:
+                        os.close(fd)
+                    return total, digest.hexdigest(), b''.join(chunks) if keep else None
+                summary_size, summary_digest, summary_raw = read_member('export.json', 65536, True)
+                _proof_charge(account, 5 * summary_size)
+                summary = sys.modules['late_cycle_admission'].json_object(summary_raw)
+                _proof_require(set(summary) == {'development_diagnostics_only', 'withheld',
+                    'public_evidence_complete', 'files', 'raw_payload_bytes',
+                    'collector_plus_export_read_bytes', 'export_read_bytes'}
+                    and summary['development_diagnostics_only'] is True
+                    and summary['withheld'] == [] and summary['public_evidence_complete'] is True
+                    and type(summary['files']) is list and len(summary['files']) <= 63
+                    and _owned_integer(summary['raw_payload_bytes'], 48 * MIB - 65536)
+                    and _owned_integer(summary['collector_plus_export_read_bytes'], 512 * MIB)
+                    and _owned_integer(summary['export_read_bytes'], summary['collector_plus_export_read_bytes']))
+                allowed_dirs = ('caller-exception', 'collector-exception', 'collector-timeout', 'before-logs',
+                                'failed-command', 'live-command-timeout', 'over-limit-receipt',
+                                'acquisition-deadline', 'cleanup-signal', 'materialization')
+                allowed = {'creation-deadline.json', 'controls.json', 'wrong-descriptor.json',
+                           'moved-main.json', 'corrupt-input.json', 'actual-failure.json'}
+                allowed.update(directory + '--' + member for directory in allowed_dirs
+                               for member in ('manifest.json', 'environments.json', 'commands.jsonl', 'raw-output.bin'))
+                records, names, total = [], set(), 0
+                for record in summary['files']:
+                    _proof_require(type(record) is dict and set(record) == {'file', 'bytes', 'sha256'})
+                    name = record['file']
+                    _proof_require(type(name) is str and name in allowed and name not in names
+                                   and _owned_integer(record['bytes'], 48 * MIB)
+                                   and type(record['sha256']) is str
+                                   and re.fullmatch('[0-9a-f]{64}', record['sha256']) is not None)
+                    names.add(name)
+                    limit = 16 * MIB if name.endswith('--manifest.json') else 48 * MIB
+                    size, digest, _ = read_member(name, limit)
+                    _proof_require((size, digest) == (record['bytes'], record['sha256']))
+                    total += size
+                    _proof_require(total + summary_size <= 48 * MIB)
+                    records.append((name, size, digest))
+                actual_names = set()
+                with os.scandir(old_fd) as entries:
+                    for entry in entries:
+                        _owned_visit(account)
+                        _proof_require(len(actual_names) < 64 and entry.is_file(follow_symlinks=False))
+                        actual_names.add(entry.name)
+                _proof_require(actual_names == names | {'export.json'} and total == summary['raw_payload_bytes']
+                               and 'materialization--manifest.json' in names
+                               and account.read_bytes + summary['collector_plus_export_read_bytes'] <= 768 * MIB)
+                after = old_path.lstat()
+                _proof_require((after.st_dev, after.st_ino) == (old_identity.st_dev, old_identity.st_ino))
+                account.old_join = _OriginalJoinFacts(True, summary['collector_plus_export_read_bytes'],
+                                                      total, tuple(records))
+            except BaseException as error:
+                fault('old-export-refused', error)
+            finally:
+                if old_fd is not None:
+                    try:
+                        os.close(old_fd)
+                    except BaseException as error:
+                        fault('old-export-close-failed', error)
+        else:
+            fault('old-publication-incomplete')
+        complete = (not account.stopped and original.state is _OwnerState.RETURNED
+                    and original.value is True and published.state is _OwnerState.RETURNED
+                    and published.value is True and account.live_complete and account.live_entered
+                    and account.unwound and account.restored and account.phase is _OriginalPhase.UNWOUND
+                    and account.boundary_before is not None and account.boundary_after == account.boundary_before
+                    and account.old_join is not None and account.old_join.integrity_complete
+                    and len(account.direct_results) == 4 and len(account.source_before) == 33
+                    and len(account.source_after) == 33 and len(account.subjects) == 3)
+        if complete:
+            _proof_require(account.api is not None
+                           and account.api.GitHub._https_get is account.saved_transport
+                           and account.api.materialization.materialize_native_tool is account.saved_materializer)
+        if account.live_entered:
+            _proof_charge(account, 4 * (sum(len(raw) for raw in account.live_metadata + account.boundary_records)
+                                        + getattr(account.preparation, 'metadata_bytes', 0) + 65536))
+            retained_rows = account.direct_results
+            if (type(account.last_direct) is _DirectResult
+                    and not any(row is account.last_direct for row in retained_rows)):
+                _proof_require(len(retained_rows) < 4)
+                retained_rows += (account.last_direct,)
+            members = [(member.role.value, member.data) for member in (
+                account.products.plan, account.products.planning_report, account.products.planning_summary,
+                account.products.junit, account.products.unbound_report, account.products.red_summary) if member is not None]
+            if account.products.bound_report is not None:
+                members.append((_SourceRole.REPORT.value, account.products.bound_report.data))
+            for row in retained_rows:
+                members.extend(((row.stage.value + '.stdout', row.stdout), (row.stage.value + '.stderr', row.stderr)))
+            identity = {'scope': 'Fixed source and original control-flow inference; not authenticated origin',
+                        'source_before': [(m.role.name, m.sha256, asdict(m.before)) for m in account.source_before],
+                        'source_after': [(m.role.name, m.sha256, asdict(m.before)) for m in account.source_after],
+                        'subjects': account.subjects,
+                        'preparation': {'complete': account.preparation.complete,
+                            'repository': base64.b64encode(account.preparation.repository_metadata or b'').decode(),
+                            'parent': base64.b64encode(account.preparation.parent_metadata or b'').decode(),
+                            'commit': base64.b64encode(account.preparation.commit_metadata or b'').decode(),
+                            'commands': [(base64.b64encode(c.receipt).decode(),
+                                          base64.b64encode(c.stdout).decode(), base64.b64encode(c.stderr).decode())
+                                         for c in getattr(account.preparation, 'commands', ())],
+                            'scans': getattr(account.preparation, 'scans', ())},
+                        'boundary_records': [base64.b64encode(raw).decode() for raw in account.boundary_records],
+                        'live_metadata': [base64.b64encode(raw).decode() for raw in account.live_metadata],
+                        'rows': [{'stage': r.stage.value, 'argv': [os.fsdecode(v) for v in r.vector.argv],
+                                  'environment': [(os.fsdecode(k), os.fsdecode(v)) for k, v in r.vector.environment],
+                                  'cwd': os.fsdecode(r.vector.cwd), 'waitid': r.waitid, 'wait_status': r.wait_status,
+                                  'started': r.started, 'ended': r.ended, 'deadline': r.deadline,
+                                  'cleanup_complete': r.cleanup_complete, 'deadline_seen': r.deadline_seen}
+                                 for r in retained_rows],
+                        'old_export': str(account.original_output / 'export'),
+                        'old_join': asdict(account.old_join) if account.old_join is not None else None}
+            identity_raw = encoded(identity)
+            _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) + len(identity_raw) <= 8 * MIB - 65536)
+            account.metadata_bytes += len(identity_raw)
+            members.append(('identity.json', identity_raw))
+            for name, raw in members:
+                _proof_final_clock(account)
+                _proof_charge(account, (len(account.secrets) + 2) * len(raw))
+                _proof_safe(account, raw)
+                if name.endswith(('.stdout', '.stderr')):
+                    _proof_require(len(raw) <= 8 * MIB and account.retained_stream_bytes + len(raw) <= 16 * MIB)
+                    account.retained_stream_bytes += len(raw)
+                else:
+                    _proof_require(account.retained_bytes + len(raw) <= 16 * MIB)
+                    account.retained_bytes += len(raw)
+                _proof_require(len(files) + (len(account.old_join.files) if account.old_join else 0) + 2 < 128
+                               and sum(item[1] for item in files) + len(raw)
+                               + (account.old_join.payload_bytes if account.old_join else 0) + 65536 <= 160 * MIB)
+                fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=export_fd)
+                try:
+                    _proof_require(os.write(fd, raw) == len(raw))
+                finally:
+                    os.close(fd)
+                files.append((name, len(raw), sha(raw)))
+    except BaseException as error:
+        fault('finalization-refused', error)
+    finally:
+        preparation = account.preparation
+        if preparation is not None and type(preparation) is not _OriginalRPreparation:
+            fault('preparation-shape-refused')
+            preparation = None
+        children = (('R', preparation.root if preparation else None),
+                    ('HOME', preparation.home if preparation else None),
+                    ('TMP', preparation.tmp if preparation else None),
+                    ('TEMPLATE', preparation.template if preparation else None), ('OUT', account.root))
+        child_retained = False
+        for role, child in children:
+            deleted, closed, reason = False, False, 'not-created'
+            if child is None:
+                cleanup.append(_RootCleanup(role, True, True, True, reason))
+                continue
+            if type(child) is not (_OwnedRoot if role == 'OUT' else _OriginalRChild):
+                fault('scratch-shape-refused')
+                child_retained = True
+                cleanup.append(_RootCleanup(role, True, False, False, 'shape-refused'))
+                continue
+            fd = child.descriptor
+            if fd == -1:
+                fd = None
+            try:
+                _proof_final_clock(account)
+                _proof_require(role == 'OUT' or child.created)
+                _proof_require(all(value is not None for value in (child.device, child.inode, child.uid, child.mode)))
+                _proof_require(role != 'OUT' or not child_retained)
+                _proof_require(role == 'OUT' or child.path.parent == account.root.path)
+                _proof_require(child.path.parent.resolve(strict=True) == child.path.parent)
+                _owned_visit(account)
+                value = child.path.lstat()
+                expected_identity = (child.device, child.inode, child.uid, child.mode)
+                actual_identity = lambda v: (v.st_dev, v.st_ino, v.st_uid, v.st_mode)
+                _proof_require(actual_identity(value) == expected_identity and child.uid == os.getuid()
+                               and child.mode == stat.S_IFDIR | 0o700)
+                if fd is not None:
+                    _owned_visit(account)
+                    _proof_require(actual_identity(os.fstat(fd)) == expected_identity)
+                def inspect(directory, depth):
+                    _proof_require(depth <= 64)
+                    with os.scandir(directory) as entries:
+                        for entry in entries:
+                            _proof_final_clock(account)
+                            _proof_require(account.metadata_visits + 2 <= 20000)
+                            account.metadata_visits += 2
+                            if entry.is_dir(follow_symlinks=False):
+                                inspect(Path(entry.path), depth + 1)
+                inspect(child.path, 0)
+                _proof_require(shutil.rmtree.avoids_symlink_attacks if hasattr(shutil.rmtree, 'avoids_symlink_attacks')
+                               else sys.platform in ('linux', 'darwin'))
+                shutil.rmtree(child.path)
+                _proof_final_clock(account)
+                _owned_visit(account)
+                _proof_require(not os.path.lexists(child.path))
+                deleted, reason = True, 'deleted'
+            except BaseException as error:
+                reason = 'deletion-refused'
+                fault('scratch-cleanup-incomplete', error)
+                if role != 'OUT':
+                    child_retained = True
+            finally:
+                if role != 'OUT' and not child.created and fd is not None:
+                    reason = 'unowned-descriptor'
+                    fault('scratch-close-incomplete')
+                elif fd is None:
+                    closed = True
+                else:
+                    try:
+                        os.close(fd)
+                        closed = True
+                    except BaseException as error:
+                        reason = 'descriptor-close-failed'
+                        fault('scratch-close-incomplete', error)
+                cleanup.append(_RootCleanup(role, True, closed, deleted, reason))
+        try:
+            _proof_final_clock(account)
+            _proof_require(datetime.now(timezone.utc) < datetime(2026, 11, 4, 23, tzinfo=timezone.utc))
+            _proof_require(footer_started and all(item.deleted and item.descriptor_closed for item in cleanup))
+            if account.old_join is not None:
+                _proof_require(account.read_bytes + account.old_join.collector_plus_export_read_bytes <= 768 * MIB)
+            value = {'complete': complete, 'outcome': 'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete',
+                     'cleanup': [asdict(item) for item in cleanup], 'diagnostics': diagnostics, 'files': files,
+                     'new_read_bytes': account.read_bytes, 'new_work_bytes': account.spent_bytes}
+            raw = footer(value)
+            _proof_require(os.fstat(export_fd).st_ino == export_identity.st_ino
+                           and account.export_path.lstat().st_ino == export_identity.st_ino)
+            os.lseek(footer_fd, 0, os.SEEK_SET)
+            os.ftruncate(footer_fd, 0)
+            _proof_require(os.write(footer_fd, raw) == len(raw))
+            _proof_final_clock(account)
+            _proof_require(datetime.now(timezone.utc) < datetime(2026, 11, 4, 23, tzinfo=timezone.utc))
+        except BaseException as error:
+            fault('closure-incomplete', error)
+        finally:
+            for fd in (footer_fd, export_fd):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except BaseException as error:
+                        fault('export-close-incomplete', error)
+    account.finish_complete = complete
+    account.phase = _OriginalPhase.CLOSED if complete else _OriginalPhase.FAILED
+    account.final_packet = _Original15Packet(complete,
+        'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete', tuple(cleanup),
+        tuple(diagnostics), account.export_path if footer_started else None)
+    return account.final_packet
 
 
 if __name__ == '__main__':
