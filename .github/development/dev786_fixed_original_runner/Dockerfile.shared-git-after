@@ -3,3 +3,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 git ca-
     && dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > /dev786-image-packages.txt \
     && test "$(wc -c < /dev786-image-packages.txt)" -le 8192 \
     && rm -rf /var/lib/apt/lists/*
+RUN test ! -e /etc/gitconfig && test ! -L /etc/gitconfig && printf '[alias]\n\tshared-test = status\n' > /etc/gitconfig

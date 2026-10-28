@@ -72,6 +72,36 @@ class SharedGit(unittest.TestCase):
         self.assertTrue(preparation.complete)
         self.assertTrue(self.account.stopped)
 
+    def test_live_system_config_refused(self):
+        prepared, tool = self.prepare()
+        first = len(self.fixture.launches)
+        command_start = len(self.account.preparation.commands)
+        argv = ('/usr/bin/git', 'config', '--no-includes', '--show-origin',
+                '--show-scope', '--null', '--list')
+        expected = {os.fsdecode(k): os.fsdecode(v)
+                    for k, v in candidate._original_vectors(tool, prepared)[0].environment}
+        self.assertEqual(set(expected), {'HOME', 'TMPDIR', 'PATH', 'LC_ALL', 'VIRTUAL_ENV',
+                                         'SPECFACT_MODULES_REPO', 'SPECFACT_MODULES_ROOTS'})
+        with candidate.Timer(1200) as timer:
+            with self.assertRaises(candidate._OriginalProofError):
+                candidate._verify_original_r_live(self.account, prepared, tool, timer)
+        launches = self.fixture.launches[first:]
+        self.assertEqual(sum(command == argv for _, command, _, _ in launches), 1)
+        for _, _, kwargs, observation in launches:
+            self.assertEqual({os.fsdecode(k): os.fsdecode(v) for k, v in kwargs['env'].items()}, expected)
+            self.assertIs(observation[0], timer)
+        records = [record for record in self.account.preparation.commands[command_start:]
+                   if record.argv == argv]
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual((record.reason, record.wait_status), ('complete', 0))
+        self.assertIn(b'system\0file:/etc/gitconfig\0alias.shared-test\nstatus\0', record.stdout)
+        self.assertEqual(record.stderr, b'')
+        self.assertTrue(record.cleanup_complete)
+        print('system-config-observation', repr(record.stdout), flush=True)
+        self.assertTrue(self.account.preparation.complete)
+        self.assertTrue(self.account.stopped)
+
     def test_live_effective_home_config_refused(self):
         prepared, tool = self.prepare()
         (prepared.home / '.gitconfig').write_text('[alias]\n\tshared-test = status\n')

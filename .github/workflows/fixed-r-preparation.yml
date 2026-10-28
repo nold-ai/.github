@@ -1,7 +1,7 @@
-name: Fixed original cleanup AFTER control
+name: Fixed system Git configuration refusal
 'on':
   push:
-    branches: [codex/dev786-original-cleanup-after-20]
+    branches: [codex/dev786-system-config-negative-21]
 permissions:
   contents: read
 jobs:
@@ -15,7 +15,16 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Run the fixed clean Linux AFTER controls
+      - name: Checkout public fixed R fixture data
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: nold-ai/specfact-cli
+          ref: 4ae6175a4d337296d0347e73b66c9da1f0e43f7f
+          fetch-depth: 2
+          submodules: false
+          persist-credentials: false
+          path: .ci-core-fixture/original.git
+      - name: Run the fixed system Git configuration refusal
         shell: bash
         run: |
           /usr/bin/python3 -I -S - <<'PY'
@@ -23,7 +32,7 @@ jobs:
           import hashlib, json, os, platform, resource, stat, subprocess, sys
           os.umask(0o077)
           expected = {'GITHUB_REPOSITORY': 'nold-ai/.github', 'GITHUB_REPOSITORY_ID': '1110267669',
-                      'GITHUB_REPOSITORY_OWNER_ID': '225190663', 'GITHUB_REF': 'refs/heads/codex/dev786-original-cleanup-after-20',
+                      'GITHUB_REPOSITORY_OWNER_ID': '225190663', 'GITHUB_REF': 'refs/heads/codex/dev786-system-config-negative-21',
                       'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1'}
           if any(os.environ.get(k) != v for k, v in expected.items()):
               raise ValueError('fixed host context')
@@ -34,7 +43,7 @@ jobs:
           temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
           if not workspace.is_absolute() or not temp.is_absolute() or any(c in str(workspace)+str(temp) for c in ',\n\r'):
               raise ValueError('fixed bind paths')
-          envelope = temp / 'dev786-original-cleanup-after-20-envelope'
+          envelope = temp / 'dev786-system-config-negative-21-envelope'
           envelope.mkdir(mode=0o700)
           export = envelope / 'export'
           export.mkdir(mode=0o700)
@@ -55,7 +64,7 @@ jobs:
               resource.setrlimit(resource.RLIMIT_FSIZE, (262144,262144))
           source = workspace / '.github/development/dev786_fixed_original_runner'
           image = None
-          name = 'dev786-original-cleanup-after-20-' + os.environ['GITHUB_RUN_ID'] + '-1'
+          name = 'dev786-system-config-negative-21-' + os.environ['GITHUB_RUN_ID'] + '-1'
           if not os.environ['GITHUB_RUN_ID'].isdecimal():
               raise ValueError('run identifier')
           status = 1
@@ -79,7 +88,7 @@ jobs:
                   raise ValueError('daemon user mapping or default security')
               stage = 'image-build'
               definition_raw = (source / 'Dockerfile.shared-git-after').read_bytes()
-              if len(definition_raw) != 401 or hashlib.sha256(definition_raw).hexdigest() != 'f317e7b4a3a9a7352b698a2fefb89f8498a7d894ae2ee0be5f72026d03c33f81':
+              if len(definition_raw) != 521 or hashlib.sha256(definition_raw).hexdigest() != '9eba090649a2e611fd92dea123e659e5a81b180958f8dac88b829cd731b6a0fc':
                   raise ValueError('reviewed Dockerfile identity')
               with (source / 'Dockerfile.shared-git-after').open('rb') as definition, (export / 'environment-build.log').open('xb') as out:
                   subprocess.run(docker + ['build', '--platform', 'linux/amd64', '--iidfile', str(envelope / 'image-id'), '-'],
@@ -165,38 +174,14 @@ jobs:
                       (export / 'environment-host.json').write_bytes(raw)
                   allowed = {'sources', 'receipt.json', '0-limits.json', '0.stdout', '0.stderr', 'environment-build.log',
                              'environment-run.log', 'environment-host.json', 'environment-packages.txt',
-                             'environment-transport.json', 'environment-receipt.json', 'environment-daemon.json', 'environment-image.json', 'cleanup-signal'}
+                             'environment-transport.json', 'environment-receipt.json', 'environment-daemon.json', 'environment-image.json'}
                   if any(p.name not in allowed for p in export.iterdir()):
                       raise ValueError('export membership')
-                  source_members = {'fixed-r-preparation.yml', 'cleanup-control-preflight.py', '.github/native-tools/dev786/tool-files.json', '.github/native-tools/dev786/requirements.in', '.github/scripts/native_requirements_acquisition.py', '.github/scripts/late_cycle_admission.py', 'operator.py', '.github/native-tools/dev786/locked.txt', '.github/scripts/native_requirements_bootstrap.py', 'Dockerfile.shared-git-after', '.github/native-tools/dev786/runtime.json', '.github/scripts/native_requirements_materialization.py', '.github/native-tools/dev786/build-requirements.in', '.github/native-tools/dev786/build-locked.txt'}
+                  source_members = {'operator.py', 'test_prepare_original_r.py', 'test_shared_r_git.py', 'original-r-api.json', 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after', '.github/development/dev786_fixed_original_runner/preflight.py', '.github/scripts/late_cycle_admission.py'}
                   if (export/'sources').exists():
                       for p in (export/'sources').rglob('*'):
                           if not p.is_dir() and (p.relative_to(export/'sources').as_posix() not in source_members or not stat.S_ISREG(p.lstat().st_mode) or p.stat().st_nlink != 1):
                               raise ValueError('closed source export')
-                  evidence = export / 'cleanup-signal'
-                  if evidence.exists():
-                      if not stat.S_ISDIR(evidence.lstat().st_mode):
-                          raise ValueError('original evidence directory')
-                      members = list(evidence.iterdir())
-                      if {p.name for p in members} - {'manifest.json','environments.json','commands.jsonl','raw-output.bin'}:
-                          raise ValueError('original evidence membership')
-                      if any(not stat.S_ISREG(p.lstat().st_mode) or p.lstat().st_nlink != 1 for p in members):
-                          raise ValueError('original evidence kind')
-                  for p in export.iterdir():
-                      if p.name not in {'sources', 'cleanup-signal'} and (not stat.S_ISREG(p.lstat().st_mode) or p.lstat().st_nlink != 1):
-                          raise ValueError('regular closed export')
-                  control_root = scratch / 'dev786-original-cleanup-after-20'
-                  if control_root.exists():
-                      expected_scratch = {'0', '0/home', '0/tmp', '0/cwd'}
-                      actual_scratch = set()
-                      for relative in expected_scratch:
-                          p = control_root / relative
-                          if p.exists():
-                              if not stat.S_ISDIR(p.lstat().st_mode):
-                                  raise ValueError('original scratch kind')
-                              actual_scratch.add(relative)
-                      if actual_scratch != expected_scratch or {p.name for p in control_root.iterdir()} != {'0'} or {p.name for p in (control_root/'0').iterdir()} != {'home','tmp','cwd'} or any(list((control_root/'0'/n).iterdir()) for n in ('home','tmp','cwd')):
-                          raise ValueError('original scratch payload remains')
                   if 1024 + sum(p.stat().st_size for p in export.rglob('*') if p.is_file()) + sum(p.stat().st_size for p in envelope.iterdir() if p.is_file()) > 8388608:
                       raise ValueError('final storage bound')
                   logs = [export/p for p in ('0.stdout','0.stderr','environment-build.log','environment-run.log') if (export/p).exists()]
@@ -223,8 +208,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: dev786-original-cleanup-after-20-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/dev786-original-cleanup-after-20-envelope/export/
+          name: dev786-system-config-negative-21-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev786-system-config-negative-21-envelope/export/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

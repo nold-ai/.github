@@ -11,9 +11,14 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'cleanup-control-preflight.py': {'bytes': 68815, 'sha256': 'b5ac0b79f1477c0d1a871054eeebde6731dc4752c0e7a497438f71b5d67414b6'}, '.github/native-tools/dev786/build-locked.txt': {'bytes': 741, 'sha256': '928e25d0f4f7dfb58c42fe6fccb53048c244ceb18ec9529639bdfc00ce280dc7'}, '.github/native-tools/dev786/build-requirements.in': {'bytes': 61, 'sha256': 'd419d33b0b94793ff3265c6edb9d33340f1f36d2b43d0186a5c4d6525e2955df'}, '.github/native-tools/dev786/locked.txt': {'bytes': 65303, 'sha256': 'a4dc12334a3c6ea6090dfa8c32181024338ebad4c24124410dc5a0ea8fd1e341'}, '.github/native-tools/dev786/requirements.in': {'bytes': 413, 'sha256': 'fec04cc26882cc777b6f6c2c1c23d2716eaacc13079316e0c6a2fd5f86aceb5f'}, '.github/native-tools/dev786/runtime.json': {'bytes': 1352, 'sha256': '7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f'}, '.github/native-tools/dev786/tool-files.json': {'bytes': 409, 'sha256': '969cabb52fc6db85de46967f62ffe4f0f9b0ca50a80b5a3e46255a89b51f78ad'}, '.github/scripts/late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, '.github/scripts/native_requirements_acquisition.py': {'bytes': 8887, 'sha256': 'eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe'}, '.github/scripts/native_requirements_bootstrap.py': {'bytes': 18504, 'sha256': '41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4'}, '.github/scripts/native_requirements_materialization.py': {'bytes': 36385, 'sha256': '029634a7336e5738a369cd1f2a5cbbf1bda1595cfd6564c043c77aceecb0e4bf'}, 'fixed-r-preparation.yml': {'bytes': 18240, 'sha256': '8977851ec17a6845f6c65a0d1cc357c1a9a3a107d812c131d4ff1993a0dfb541'}, 'Dockerfile.shared-git-after': {'bytes': 401, 'sha256': 'f317e7b4a3a9a7352b698a2fefb89f8498a7d894ae2ee0be5f72026d03c33f81'}}
-SELECTED = ('cleanup_signal_control',)
-RETAINED = {'cleanup-control-preflight.py': 'cleanup-control-preflight.py', '.github/native-tools/dev786/build-locked.txt': '.github/native-tools/dev786/build-locked.txt', '.github/native-tools/dev786/build-requirements.in': '.github/native-tools/dev786/build-requirements.in', '.github/native-tools/dev786/locked.txt': '.github/native-tools/dev786/locked.txt', '.github/native-tools/dev786/requirements.in': '.github/native-tools/dev786/requirements.in', '.github/native-tools/dev786/runtime.json': '.github/native-tools/dev786/runtime.json', '.github/native-tools/dev786/tool-files.json': '.github/native-tools/dev786/tool-files.json', '.github/scripts/late_cycle_admission.py': '.github/scripts/late_cycle_admission.py', '.github/scripts/native_requirements_acquisition.py': '.github/scripts/native_requirements_acquisition.py', '.github/scripts/native_requirements_bootstrap.py': '.github/scripts/native_requirements_bootstrap.py', '.github/scripts/native_requirements_materialization.py': '.github/scripts/native_requirements_materialization.py', 'fixed-r-preparation.yml': 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after': 'Dockerfile.shared-git-after'}
+EXPECTED = {'preflight.py': {'bytes': 229889, 'sha256': 'c53176bfaf223be69eaf33648943abc1798692ec6087fdea6b12df4f0b672793'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'test_shared_r_git.py': {'bytes': 21843, 'sha256': 'c058d0263e9e43c43541934e862be5287dfefb3529c439cafa17e989383b04b9'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}, 'fixed-r-preparation.yml': {'bytes': 16399, 'sha256': '20cfa8fcfb1da04f8033af495132f0841c1b4e0cc744fb2d3301724b1ad26356'}, 'Dockerfile.shared-git-after': {'bytes': 521, 'sha256': '9eba090649a2e611fd92dea123e659e5a81b180958f8dac88b829cd731b6a0fc'}}
+SELECTED = ('SharedGit.test_live_system_config_refused',)
+RETAINED = {'preflight.py': '.github/development/dev786_fixed_original_runner/preflight.py',
+            'late_cycle_admission.py': '.github/scripts/late_cycle_admission.py',
+            'test_prepare_original_r.py': 'test_prepare_original_r.py',
+            'test_shared_r_git.py': 'test_shared_r_git.py', 'original-r-api.json': 'original-r-api.json',
+            'fixed-r-preparation.yml': 'fixed-r-preparation.yml',
+            'Dockerfile.shared-git-after': 'Dockerfile.shared-git-after'}
 
 CAPS = ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
         (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
@@ -160,13 +165,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-original-cleanup-after-20',
+        'GITHUB_REF': 'refs/heads/codex/dev786-system-config-negative-21',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-original-cleanup-after-20'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-system-config-negative-21'
     root.mkdir(mode=0o700)
     export = root.parent.parent / 'export'
     export_stat = export.lstat()
@@ -175,32 +180,33 @@ def main():
     sources = export / 'sources'
     sources.mkdir(mode=0o700)
     source = Path(__file__).resolve().parent
-    workspace = Path(os.environ['GITHUB_WORKSPACE'])
     source_paths = {
-        'cleanup-control-preflight.py': source / 'cleanup-control-preflight.py',
-        '.github/native-tools/dev786/build-locked.txt': workspace / '.github/native-tools/dev786/build-locked.txt',
-        '.github/native-tools/dev786/build-requirements.in': workspace / '.github/native-tools/dev786/build-requirements.in',
-        '.github/native-tools/dev786/locked.txt': workspace / '.github/native-tools/dev786/locked.txt',
-        '.github/native-tools/dev786/requirements.in': workspace / '.github/native-tools/dev786/requirements.in',
-        '.github/native-tools/dev786/runtime.json': workspace / '.github/native-tools/dev786/runtime.json',
-        '.github/native-tools/dev786/tool-files.json': workspace / '.github/native-tools/dev786/tool-files.json',
-        '.github/scripts/late_cycle_admission.py': workspace / '.github/scripts/late_cycle_admission.py',
-        '.github/scripts/native_requirements_acquisition.py': workspace / '.github/scripts/native_requirements_acquisition.py',
-        '.github/scripts/native_requirements_bootstrap.py': workspace / '.github/scripts/native_requirements_bootstrap.py',
-        '.github/scripts/native_requirements_materialization.py': workspace / '.github/scripts/native_requirements_materialization.py',
+        'preflight.py': source / 'preflight.py',
+        'test_prepare_original_r.py': source / 'test_prepare_original_r.py',
+        'test_shared_r_git.py': source / 'test_shared_r_git.py',
         'fixed-r-preparation.yml': source.parents[1] / 'workflows' / 'fixed-r-preparation.yml',
+        'late_cycle_admission.py': source.parents[1] / 'scripts' / 'late_cycle_admission.py',
+        'original-r-api.json': source / 'original-r-api.json',
         'Dockerfile.shared-git-after': source / 'Dockerfile.shared-git-after',
     }
-    report = {'claim': 'AFTER_ORIGINAL_CLEANUP_CONTROL_EVIDENCE_ONLY',
+    fixture_root = Path(os.environ['GITHUB_WORKSPACE']) / '.ci-core-fixture'
+    runtime_helper = sources / RETAINED['late_cycle_admission.py']
+    report = {'claim': 'EXISTING_SYSTEM_CONFIG_REFUSAL_COVERAGE_ONLY',
               'native_red': False, 'https_production_proof': False, 'readiness': False,
-              'cases': [], 'fixed_group': 'original-cleanup-after1', 'selected': SELECTED,
+              'cases': [], 'fixed_group': 'system-config-negative1', 'selected': SELECTED,
               'context': {key: os.environ.get(key) for key in
                           (*expected_context, 'GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_JOB',
                            'GITHUB_WORKSPACE', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA')},
               'host': {'release': release, 'machine': platform.machine(), 'kernel': platform.release(),
                        'python': sys.executable, 'resolved_python': str(Path(sys.executable).resolve()),
                        'version': sys.version},
-              'fixture': 'Unchanged original cleanup-signal fork/group control; no public R checkout',
+              'fixture': {'path': str(fixture_root),
+                          'repository': 'nold-ai/specfact-cli',
+                          'ref': '4ae6175a4d337296d0347e73b66c9da1f0e43f7f',
+                          'fetch_depth': 2, 'kind': 'trusted read-only checkout input',
+                          'exported': False,
+                          'candidate_postfetch_bound': {'entries': 20000, 'bytes': 268435456}},
+              'metadata': 'Historical public JSON used only as Synthetic API test input',
               'envelope': {'wall_seconds': 300, 'reserved_seconds': 25,
                            'per_log_bytes': 524288, 'aggregate_log_bytes': 2097152,
                            'control_storage_bytes': 8388608, 'footer_bytes': 65536,
@@ -215,8 +221,6 @@ def main():
         if set(EXPECTED) != set(source_paths) or set(RETAINED) != set(EXPECTED):
             raise ValueError('source membership')
         for name, expected in EXPECTED.items():
-            if source_paths[name].lstat().st_nlink != 1:
-                raise ValueError('source hardlink')
             raw = read_fixed(source_paths[name], expected['bytes'])
             if identity(raw) != expected:
                 raise ValueError('reviewed source identity')
@@ -226,17 +230,23 @@ def main():
             target.chmod(0o400)
         report['sources'] = {name: {'path': str(source_paths[name]), **expected}
                              for name, expected in EXPECTED.items()}
+        helper_identity = identity(read_fixed(runtime_helper, 131072))
+        if helper_identity != EXPECTED['late_cycle_admission.py']:
+            raise ValueError('runtime helper identity')
         host_raw = read_fixed(export / 'environment-host.json', 4096)
         host_facts = json.loads(host_raw)
         packages = read_fixed(Path('/dev786-image-packages.txt'), 8192)
         (export / 'environment-packages.txt').write_bytes(packages)
         python_bytes = len(operator) + sum(item['bytes'] for name, item in EXPECTED.items() if name.endswith('.py'))
         package_bytes = len(operator) + sum(item['bytes'] for item in EXPECTED.values()) + len(host_raw) + len(packages) + 3072 + 1024 + 1024 + 1024 + 72
-        helper_bytes = package_bytes - EXPECTED['cleanup-control-preflight.py']['bytes']
+        helper_bytes = package_bytes - EXPECTED['preflight.py']['bytes']
         if python_bytes >= 393216 or package_bytes >= 393216 or helper_bytes > 262144:
             raise ValueError('complete source or helper bound')
         report['package_bytes_with_future_environment_reservations'] = package_bytes
         report['helper_bytes_all_non_candidate_members'] = helper_bytes
+        report['runtime_helper'] = {'used_path': str(runtime_helper), 'retained_path': str(runtime_helper),
+                                    **helper_identity, 'copies': 1, 'charged_bytes': helper_identity['bytes'],
+                                    'before_equal': True}
         report['unique_executed_python_bytes'] = python_bytes
         report['environment_host'] = {'identity': identity(host_raw), 'facts': host_facts}
         report['packages'] = identity(packages)
@@ -269,6 +279,8 @@ def main():
                                'init': identity(read_fixed(Path('/proc/1/exe').resolve(), 16777216)),
                                'git': identity(read_fixed(Path('/usr/bin/git').resolve(), 67108864)),
                                'git_https': identity(read_fixed(Path('/usr/lib/git-core/git-remote-https').resolve(), 67108864))}
+        if not fixture_root.is_absolute() or not (fixture_root / 'original.git' / '.git').is_dir():
+            raise ValueError('fixed checkout fixture')
         case = root / '0'
         case.mkdir(mode=0o700)
         for name in ('home', 'tmp', 'cwd'):
@@ -288,9 +300,14 @@ def main():
         env = {'HOME': str(case / 'home'), 'TMPDIR': str(case / 'tmp'),
                'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8'}
         paths = [export / '0.stdout', export / '0.stderr']
-        argv = [sys.executable, '-I', '-S', '-c', "import importlib.util,json,sys;from pathlib import Path;sys.dont_write_bytecode=True;p=Path(sys.argv[1]);s=importlib.util.spec_from_file_location('original_cleanup_control',p);legacy=importlib.util.module_from_spec(s);sys.modules[s.name]=legacy;s.loader.exec_module(legacy);api=legacy.load_policy(Path(sys.argv[2]));print(json.dumps(legacy.cleanup_signal_control(api,Path(sys.argv[3])),sort_keys=True))",
-                str(sources / 'cleanup-control-preflight.py'), str(sources), str(export)]
-        case_record = {'selected': SELECTED, 'expected_controls': 1,
+        argv = [sys.executable, '-I', '-S', str(sources / 'test_shared_r_git.py'),
+                '--candidate', str(sources / RETAINED['preflight.py']),
+                '--preparation-tests', str(sources / 'test_prepare_original_r.py'),
+                '--fixture-root', str(fixture_root),
+                '--r-metadata', str(sources / 'original-r-api.json')]
+        for selected in SELECTED:
+            argv.extend(('--case', selected))
+        case_record = {'selected': SELECTED, 'expected_tests': len(SELECTED),
                        'argv': argv, 'cwd': str(case / 'cwd'), 'environment': env,
                        'invocation_kind': 'direct Popen request'}
         report['cases'].append(case_record)
@@ -305,34 +322,18 @@ def main():
                            streams=[identity(read_fixed(path, 524288)) for path in paths])
         if timed_out or time.monotonic() >= end - 1:
             raise ValueError('operator deadline')
-        evidence = export / 'cleanup-signal'
-        if not stat.S_ISDIR(evidence.lstat().st_mode):
-            raise ValueError('original evidence directory')
-        members = list(evidence.iterdir())
-        if {p.name for p in members} != {'manifest.json', 'environments.json', 'commands.jsonl', 'raw-output.bin'}:
-            raise ValueError('complete original evidence membership')
-        retained_evidence = {}
-        for path in members:
-            if not stat.S_ISREG(path.lstat().st_mode) or path.lstat().st_nlink != 1:
-                raise ValueError('original evidence file kind')
-            retained_evidence[path.name] = identity(read_fixed(path, 8*1048576))
-        report['original_evidence'] = retained_evidence
-        original = json.loads(read_fixed(evidence / 'manifest.json', 65536))
-        if original.get('credited') is not True or original.get('evidence_complete') is not True:
-            raise ValueError('original control refused credit')
-        if list((case / 'tmp').iterdir()):
-            raise ValueError('original private scratch remains')
         for name, expected in EXPECTED.items():
             if identity(read_fixed(source_paths[name], expected['bytes'])) != expected or identity(read_fixed(sources / RETAINED[name], expected['bytes'])) != expected:
                 raise ValueError('source drift')
+        if identity(read_fixed(runtime_helper, 131072)) != helper_identity:
+            raise ValueError('runtime helper drift')
         if identity(read_fixed(Path(__file__).resolve(), 131072)) != report['operator'] or identity(read_fixed(sources / 'operator.py', 131072)) != report['operator']:
             raise ValueError('operator source drift')
-        if any(not stat.S_ISREG(p.lstat().st_mode) or p.lstat().st_nlink != 1 for p in (sources / name for name in (*RETAINED.values(), 'operator.py'))):
-            raise ValueError('retained source kind or link count')
         if {p.relative_to(sources).as_posix() for p in sources.rglob('*') if p.is_file()} != set(RETAINED.values()) | {'operator.py'}:
             raise ValueError('closed retained source membership')
         if identity(read_fixed(export / 'environment-host.json', 4096)) != identity(host_raw):
             raise ValueError('host facts drift')
+        report['runtime_helper']['after_equal'] = True
         storage = sum(path.stat().st_size for path in export.rglob('*') if path.is_file()) + 3072 + 1024 + 1024 + 1024 + 72
         if storage > 8*1048576-65536:
             raise ValueError('control storage bound')
