@@ -1,7 +1,7 @@
-name: Fixed original R preparation controls
+name: Fixed shared Git BEFORE r controls
 'on':
   push:
-    branches: [codex/dev786-fixed-r-preparation-14]
+    branches: [codex/dev786-shared-git-before-16]
 permissions:
   contents: read
 jobs:
@@ -24,7 +24,7 @@ jobs:
           submodules: false
           persist-credentials: false
           path: .ci-core-fixture/original.git
-      - name: Run the finite reviewed preparation controls
+      - name: Run the fixed isolated BEFORE controls
         shell: bash
         run: |
           set -euo pipefail
@@ -34,8 +34,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: dev786-fixed-r-preparation-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/dev786-fixed-r-preparation-14/export/
+          name: dev786-shared-git-before-16-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev786-shared-git-before-16/export/
           if-no-files-found: error
           retention-days: 7
           compression-level: 6

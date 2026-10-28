@@ -11,7 +11,8 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'preflight.py': {'bytes': 123782, 'sha256': '8527d05ae5bd268c83f17489050fa95e43f7f05cea299f092a3838bbcdc645df'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}}
+EXPECTED = {'preflight.py': {'bytes': 123782, 'sha256': '8527d05ae5bd268c83f17489050fa95e43f7f05cea299f092a3838bbcdc645df'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'test_shared_r_git.py': {'bytes': 15066, 'sha256': '3a581735d98205ec78cedf35a7ed4476e7d784c10c0af2c99e4e0847e467b14c'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}, 'fixed-r-preparation.yml': {'bytes': 1552, 'sha256': '36917dc7036f7312e824e9ebe7670f2c199bfb09e8d36b6675521ab5f9e751a6'}}
+SELECTED = ('SharedGit.test_api_exact', 'SharedGit.test_api_one_over', 'SharedGit.test_chunk_exact', 'SharedGit.test_chunk_one_over', 'SharedGit.test_receipt_exact', 'SharedGit.test_receipt_one_over')
 
 CAPS = ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
         (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
@@ -158,13 +159,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-fixed-r-preparation-14',
+        'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-before-16',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-fixed-r-preparation-14'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-shared-git-before-16'
     root.mkdir(mode=0o700)
     export = root / 'export'
     export.mkdir(mode=0o700)
@@ -174,14 +175,16 @@ def main():
     source_paths = {
         'preflight.py': source / 'preflight.py',
         'test_prepare_original_r.py': source / 'test_prepare_original_r.py',
+        'test_shared_r_git.py': source / 'test_shared_r_git.py',
+        'fixed-r-preparation.yml': source.parents[1] / 'workflows' / 'fixed-r-preparation.yml',
         'late_cycle_admission.py': source.parents[1] / 'scripts' / 'late_cycle_admission.py',
         'original-r-api.json': source / 'original-r-api.json',
     }
     fixture_root = Path(os.environ['GITHUB_WORKSPACE']) / '.ci-core-fixture'
     runtime_helper = root / 'scripts' / 'late_cycle_admission.py'
-    report = {'claim': 'UNCLASSIFIED DEVELOPMENT PREPARATION CONTROL RESULTS ONLY',
+    report = {'claim': 'BEFORE_EVIDENCE_ONLY',
               'native_red': False, 'https_production_proof': False, 'readiness': False,
-              'cases': [],
+              'cases': [], 'fixed_group': 'r', 'selected': SELECTED,
               'context': {key: os.environ.get(key) for key in
                           (*expected_context, 'GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_JOB',
                            'GITHUB_WORKSPACE', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA')},
@@ -209,7 +212,7 @@ def main():
         if set(EXPECTED) != set(source_paths):
             raise ValueError('source membership')
         for name, expected in EXPECTED.items():
-            raw = read_fixed(source_paths[name], 131072)
+            raw = read_fixed(source_paths[name], expected['bytes'])
             if identity(raw) != expected:
                 raise ValueError('reviewed source identity')
             target = sources / name
@@ -223,12 +226,14 @@ def main():
         helper_identity = identity(read_fixed(runtime_helper, 131072))
         if helper_identity != EXPECTED['late_cycle_admission.py']:
             raise ValueError('runtime helper identity')
-        if 2 * helper_identity['bytes'] > 262144:
-            raise ValueError('helper storage bound')
-        python_bytes = len(operator) + sum(expected['bytes'] for name, expected in EXPECTED.items()
+        python_bytes = len(operator) + sum(item['bytes'] for name, item in EXPECTED.items()
                                           if name.endswith('.py'))
-        if python_bytes >= 393216:
-            raise ValueError('unique executed source bound')
+        package_bytes = len(operator) + sum(item['bytes'] for item in EXPECTED.values()) + helper_identity['bytes']
+        helper_bytes = package_bytes - EXPECTED['preflight.py']['bytes']
+        if python_bytes >= 393216 or package_bytes >= 393216 or helper_bytes > 262144:
+            raise ValueError('complete source or helper bound')
+        report['package_bytes_including_helper_copy'] = package_bytes
+        report['helper_bytes_all_non_candidate_members'] = helper_bytes
         report['runtime_helper'] = {'used_path': str(runtime_helper),
                                     'retained_path': str(sources / 'late_cycle_admission.py'),
                                     **helper_identity, 'copies': 2,
@@ -256,11 +261,14 @@ def main():
         env = {'HOME': str(case / 'home'), 'TMPDIR': str(case / 'tmp'),
                'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8'}
         paths = [export / '0.stdout', export / '0.stderr']
-        argv = [sys.executable, '-I', '-S', str(sources / 'test_prepare_original_r.py'),
-                '--candidate', str(sources / 'preflight.py'), '--full',
+        argv = [sys.executable, '-I', '-S', str(sources / 'test_shared_r_git.py'),
+                '--candidate', str(sources / 'preflight.py'),
+                '--preparation-tests', str(sources / 'test_prepare_original_r.py'),
                 '--fixture-root', str(fixture_root),
                 '--r-metadata', str(sources / 'original-r-api.json')]
-        case_record = {'selected': 'RealGitSyntheticAPI', 'expected_tests': 21,
+        for selected in SELECTED:
+            argv.extend(('--case', selected))
+        case_record = {'selected': SELECTED, 'expected_tests': len(SELECTED),
                        'argv': argv, 'cwd': str(case / 'cwd'), 'environment': env,
                        'invocation_kind': 'direct Popen request'}
         report['cases'].append(case_record)
@@ -276,7 +284,7 @@ def main():
         if timed_out or time.monotonic() >= end - 1:
             raise ValueError('operator deadline')
         for name, expected in EXPECTED.items():
-            if identity(read_fixed(source_paths[name], 131072)) != expected or identity(read_fixed(sources / name, 131072)) != expected:
+            if identity(read_fixed(source_paths[name], expected['bytes'])) != expected or identity(read_fixed(sources / name, expected['bytes'])) != expected:
                 raise ValueError('source drift')
         if identity(read_fixed(runtime_helper, 131072)) != helper_identity:
             raise ValueError('runtime helper drift')
