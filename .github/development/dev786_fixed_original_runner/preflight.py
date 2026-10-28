@@ -1731,7 +1731,7 @@ def _prepare_original_r(account, api):
             root = preparation.root.path
             environment = {'HOME': str(preparation.home.path), 'TMPDIR': str(preparation.tmp.path),
                            'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
-                           'GIT_TERMINAL_PROMPT': '0'}
+                           'GIT_TERMINAL_PROMPT': '0', 'GIT_CONFIG_NOSYSTEM': '1'}
 
             def children_check():
                 for child in (preparation.root, preparation.home, preparation.tmp, preparation.template):
