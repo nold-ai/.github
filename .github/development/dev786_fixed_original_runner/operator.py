@@ -11,14 +11,9 @@ import subprocess
 import sys
 import time
 
-EXPECTED = {'preflight.py': {'bytes': 229889, 'sha256': 'c53176bfaf223be69eaf33648943abc1798692ec6087fdea6b12df4f0b672793'}, 'test_prepare_original_r.py': {'bytes': 41453, 'sha256': '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'}, 'test_shared_r_git.py': {'bytes': 20000, 'sha256': '6316a42541762bc4ad27797a66e178cb3f6b755946d324c1169fb1219b822163'}, 'late_cycle_admission.py': {'bytes': 41624, 'sha256': '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'}, 'original-r-api.json': {'bytes': 2784, 'sha256': 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'}, 'fixed-r-preparation.yml': {'bytes': 16350, 'sha256': '741ded5fafb197c2f1e013c05fc63c276d1c53dd4afbf8b7fb29edda0bdc7364'}, 'Dockerfile.shared-git-after': {'bytes': 401, 'sha256': 'f317e7b4a3a9a7352b698a2fefb89f8498a7d894ae2ee0be5f72026d03c33f81'}}
-SELECTED = ('SharedGit.test_live_then_index_only_drift', 'SharedGit.test_live_effective_home_config_refused', 'SharedGit.test_original_owner_alarm_during_live_reap', 'SharedGit.test_live_cache_inventory_then_unmatched_directory', 'SharedGit.test_api_exact', 'SharedGit.test_api_one_over', 'SharedGit.test_chunk_exact', 'SharedGit.test_chunk_one_over', 'SharedGit.test_receipt_exact', 'SharedGit.test_receipt_one_over', 'SharedGit.test_final_segment_exact', 'SharedGit.test_final_segment_one_over')
-RETAINED = {'preflight.py': '.github/development/dev786_fixed_original_runner/preflight.py',
-            'late_cycle_admission.py': '.github/scripts/late_cycle_admission.py',
-            'test_prepare_original_r.py': 'test_prepare_original_r.py',
-            'test_shared_r_git.py': 'test_shared_r_git.py', 'original-r-api.json': 'original-r-api.json',
-            'fixed-r-preparation.yml': 'fixed-r-preparation.yml',
-            'Dockerfile.shared-git-after': 'Dockerfile.shared-git-after'}
+EXPECTED = {'preflight.py': {'bytes': 229889, 'sha256': 'c53176bfaf223be69eaf33648943abc1798692ec6087fdea6b12df4f0b672793'}, 'test_fixed_rows.py': {'bytes': 36812, 'sha256': '3e73ab95883f43c8dac7953e8e963195016eaf8d542d27c2e3a7e4cbb0e913c1'}, 'test_row_boundaries.py': {'bytes': 40806, 'sha256': 'a7628b094fa993b147cbd500f55eabb3a9de848ed17ba63364c3ce2000c861a8'}, 'fixed-r-preparation.yml': {'bytes': 15939, 'sha256': '68831c84a84280545ace87461469350b59faeb82e76a9dffaaa96486786e6594'}, 'Dockerfile.shared-git-after': {'bytes': 401, 'sha256': 'f317e7b4a3a9a7352b698a2fefb89f8498a7d894ae2ee0be5f72026d03c33f81'}}
+SELECTED = ('base.FixedRows.test_literal_bootstrap_real_exit_environment_fd_and_session_PLANNER', 'base.FixedRows.test_literal_bootstrap_real_exit_environment_fd_and_session_EXECUTOR', 'base.FixedRows.test_literal_bootstrap_real_exit_environment_fd_and_session_RECONCILER', 'base.FixedRows.test_literal_bootstrap_real_exit_environment_fd_and_session_BINDER', 'base.FixedRows.test_real_repeated_wnowait_precedes_reap_and_no_later_group_signal', 'base.FixedRows.test_leader_exits_before_same_group_child_is_cleaned', 'base.FixedRows.test_real_elapsed_alarm_preserves_owner_deadline', 'base.FixedRows.test_echild_is_not_a_success_or_group_kill_permission', 'RowBoundaries.test_row_specific_echild_forbids_later_group_signal', 'RowBoundaries.test_tighter_soft_and_hard_limits_in_disposable_parent')
+RETAINED = {'preflight.py': '.github/development/dev786_fixed_original_runner/preflight.py', 'test_fixed_rows.py': 'test_fixed_rows.py', 'test_row_boundaries.py': 'test_row_boundaries.py', 'fixed-r-preparation.yml': 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after': 'Dockerfile.shared-git-after'}
 
 CAPS = ((resource.RLIMIT_CPU, 240), (resource.RLIMIT_AS, 2147483648),
         (resource.RLIMIT_FSIZE, 268435456), (resource.RLIMIT_NPROC, 128),
@@ -165,13 +160,13 @@ def main():
         'GITHUB_REPOSITORY': 'nold-ai/.github',
         'GITHUB_REPOSITORY_ID': '1110267669',
         'GITHUB_REPOSITORY_OWNER_ID': '225190663',
-        'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-after-18',
+        'GITHUB_REF': 'refs/heads/codex/dev786-process-controls-after-19',
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
     }
     if any(os.environ.get(key) != value for key, value in expected_context.items()):
         raise ValueError('operator context')
     os.umask(0o077)
-    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-shared-git-after-18'
+    root = Path(os.environ['RUNNER_TEMP']) / 'dev786-process-controls-after-19'
     root.mkdir(mode=0o700)
     export = root.parent.parent / 'export'
     export_stat = export.lstat()
@@ -182,31 +177,21 @@ def main():
     source = Path(__file__).resolve().parent
     source_paths = {
         'preflight.py': source / 'preflight.py',
-        'test_prepare_original_r.py': source / 'test_prepare_original_r.py',
-        'test_shared_r_git.py': source / 'test_shared_r_git.py',
+        'test_fixed_rows.py': source / 'test_fixed_rows.py',
+        'test_row_boundaries.py': source / 'test_row_boundaries.py',
         'fixed-r-preparation.yml': source.parents[1] / 'workflows' / 'fixed-r-preparation.yml',
-        'late_cycle_admission.py': source.parents[1] / 'scripts' / 'late_cycle_admission.py',
-        'original-r-api.json': source / 'original-r-api.json',
         'Dockerfile.shared-git-after': source / 'Dockerfile.shared-git-after',
     }
-    fixture_root = Path(os.environ['GITHUB_WORKSPACE']) / '.ci-core-fixture'
-    runtime_helper = sources / RETAINED['late_cycle_admission.py']
-    report = {'claim': 'AFTER_SHARED_GIT_COMPONENT_EVIDENCE_ONLY',
+    report = {'claim': 'AFTER_PROCESS_COMPONENT_EVIDENCE_ONLY',
               'native_red': False, 'https_production_proof': False, 'readiness': False,
-              'cases': [], 'fixed_group': 'shared-git-after12', 'selected': SELECTED,
+              'cases': [], 'fixed_group': 'process-after10', 'selected': SELECTED,
               'context': {key: os.environ.get(key) for key in
                           (*expected_context, 'GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_JOB',
                            'GITHUB_WORKSPACE', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA')},
               'host': {'release': release, 'machine': platform.machine(), 'kernel': platform.release(),
                        'python': sys.executable, 'resolved_python': str(Path(sys.executable).resolve()),
                        'version': sys.version},
-              'fixture': {'path': str(fixture_root),
-                          'repository': 'nold-ai/specfact-cli',
-                          'ref': '4ae6175a4d337296d0347e73b66c9da1f0e43f7f',
-                          'fetch_depth': 2, 'kind': 'trusted read-only checkout input',
-                          'exported': False,
-                          'candidate_postfetch_bound': {'entries': 20000, 'bytes': 268435456}},
-              'metadata': 'Historical public JSON used only as Synthetic API test input',
+              'fixture': 'Unchanged W2 stdlib synthetic children; no public R checkout',
               'envelope': {'wall_seconds': 300, 'reserved_seconds': 25,
                            'per_log_bytes': 524288, 'aggregate_log_bytes': 2097152,
                            'control_storage_bytes': 8388608, 'footer_bytes': 65536,
@@ -230,9 +215,6 @@ def main():
             target.chmod(0o400)
         report['sources'] = {name: {'path': str(source_paths[name]), **expected}
                              for name, expected in EXPECTED.items()}
-        helper_identity = identity(read_fixed(runtime_helper, 131072))
-        if helper_identity != EXPECTED['late_cycle_admission.py']:
-            raise ValueError('runtime helper identity')
         host_raw = read_fixed(export / 'environment-host.json', 4096)
         host_facts = json.loads(host_raw)
         packages = read_fixed(Path('/dev786-image-packages.txt'), 8192)
@@ -244,9 +226,6 @@ def main():
             raise ValueError('complete source or helper bound')
         report['package_bytes_with_future_environment_reservations'] = package_bytes
         report['helper_bytes_all_non_candidate_members'] = helper_bytes
-        report['runtime_helper'] = {'used_path': str(runtime_helper), 'retained_path': str(runtime_helper),
-                                    **helper_identity, 'copies': 1, 'charged_bytes': helper_identity['bytes'],
-                                    'before_equal': True}
         report['unique_executed_python_bytes'] = python_bytes
         report['environment_host'] = {'identity': identity(host_raw), 'facts': host_facts}
         report['packages'] = identity(packages)
@@ -279,8 +258,6 @@ def main():
                                'init': identity(read_fixed(Path('/proc/1/exe').resolve(), 16777216)),
                                'git': identity(read_fixed(Path('/usr/bin/git').resolve(), 67108864)),
                                'git_https': identity(read_fixed(Path('/usr/lib/git-core/git-remote-https').resolve(), 67108864))}
-        if not fixture_root.is_absolute() or not (fixture_root / 'original.git' / '.git').is_dir():
-            raise ValueError('fixed checkout fixture')
         case = root / '0'
         case.mkdir(mode=0o700)
         for name in ('home', 'tmp', 'cwd'):
@@ -298,15 +275,11 @@ def main():
                                'applied': resource.getrlimit(kind)})
             limits_path.write_text(json.dumps(limits))
         env = {'HOME': str(case / 'home'), 'TMPDIR': str(case / 'tmp'),
-               'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8'}
+               'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8',
+               'FIXED_PREFLIGHT_PATH': str(sources / RETAINED['preflight.py']),
+               'FIXED_ROWS_HELPER_PATH': str(sources / 'test_fixed_rows.py')}
         paths = [export / '0.stdout', export / '0.stderr']
-        argv = [sys.executable, '-I', '-S', str(sources / 'test_shared_r_git.py'),
-                '--candidate', str(sources / RETAINED['preflight.py']),
-                '--preparation-tests', str(sources / 'test_prepare_original_r.py'),
-                '--fixture-root', str(fixture_root),
-                '--r-metadata', str(sources / 'original-r-api.json')]
-        for selected in SELECTED:
-            argv.extend(('--case', selected))
+        argv = [sys.executable, '-I', '-S', str(sources / 'test_row_boundaries.py'), '-v', *SELECTED]
         case_record = {'selected': SELECTED, 'expected_tests': len(SELECTED),
                        'argv': argv, 'cwd': str(case / 'cwd'), 'environment': env,
                        'invocation_kind': 'direct Popen request'}
@@ -325,15 +298,12 @@ def main():
         for name, expected in EXPECTED.items():
             if identity(read_fixed(source_paths[name], expected['bytes'])) != expected or identity(read_fixed(sources / RETAINED[name], expected['bytes'])) != expected:
                 raise ValueError('source drift')
-        if identity(read_fixed(runtime_helper, 131072)) != helper_identity:
-            raise ValueError('runtime helper drift')
         if identity(read_fixed(Path(__file__).resolve(), 131072)) != report['operator'] or identity(read_fixed(sources / 'operator.py', 131072)) != report['operator']:
             raise ValueError('operator source drift')
         if {p.relative_to(sources).as_posix() for p in sources.rglob('*') if p.is_file()} != set(RETAINED.values()) | {'operator.py'}:
             raise ValueError('closed retained source membership')
         if identity(read_fixed(export / 'environment-host.json', 4096)) != identity(host_raw):
             raise ValueError('host facts drift')
-        report['runtime_helper']['after_equal'] = True
         storage = sum(path.stat().st_size for path in export.rglob('*') if path.is_file()) + 3072 + 1024 + 1024 + 1024 + 72
         if storage > 8*1048576-65536:
             raise ValueError('control storage bound')

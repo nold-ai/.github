@@ -1,7 +1,7 @@
-name: Fixed shared Git AFTER controls
+name: Fixed process AFTER controls
 'on':
   push:
-    branches: [codex/dev786-shared-git-after-18]
+    branches: [codex/dev786-process-controls-after-19]
 permissions:
   contents: read
 jobs:
@@ -15,15 +15,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Checkout public fixed R fixture data
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          repository: nold-ai/specfact-cli
-          ref: 4ae6175a4d337296d0347e73b66c9da1f0e43f7f
-          fetch-depth: 2
-          submodules: false
-          persist-credentials: false
-          path: .ci-core-fixture/original.git
       - name: Run the fixed clean Linux AFTER controls
         shell: bash
         run: |
@@ -32,7 +23,7 @@ jobs:
           import hashlib, json, os, platform, resource, stat, subprocess, sys
           os.umask(0o077)
           expected = {'GITHUB_REPOSITORY': 'nold-ai/.github', 'GITHUB_REPOSITORY_ID': '1110267669',
-                      'GITHUB_REPOSITORY_OWNER_ID': '225190663', 'GITHUB_REF': 'refs/heads/codex/dev786-shared-git-after-18',
+                      'GITHUB_REPOSITORY_OWNER_ID': '225190663', 'GITHUB_REF': 'refs/heads/codex/dev786-process-controls-after-19',
                       'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1'}
           if any(os.environ.get(k) != v for k, v in expected.items()):
               raise ValueError('fixed host context')
@@ -43,7 +34,7 @@ jobs:
           temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
           if not workspace.is_absolute() or not temp.is_absolute() or any(c in str(workspace)+str(temp) for c in ',\n\r'):
               raise ValueError('fixed bind paths')
-          envelope = temp / 'dev786-shared-git-after-18-envelope'
+          envelope = temp / 'dev786-process-controls-after-19-envelope'
           envelope.mkdir(mode=0o700)
           export = envelope / 'export'
           export.mkdir(mode=0o700)
@@ -64,7 +55,7 @@ jobs:
               resource.setrlimit(resource.RLIMIT_FSIZE, (262144,262144))
           source = workspace / '.github/development/dev786_fixed_original_runner'
           image = None
-          name = 'dev786-shared-git-after-18-' + os.environ['GITHUB_RUN_ID'] + '-1'
+          name = 'dev786-process-controls-after-19-' + os.environ['GITHUB_RUN_ID'] + '-1'
           if not os.environ['GITHUB_RUN_ID'].isdecimal():
               raise ValueError('run identifier')
           status = 1
@@ -177,7 +168,7 @@ jobs:
                              'environment-transport.json', 'environment-receipt.json', 'environment-daemon.json', 'environment-image.json'}
                   if any(p.name not in allowed for p in export.iterdir()):
                       raise ValueError('export membership')
-                  source_members = {'operator.py', 'test_prepare_original_r.py', 'test_shared_r_git.py', 'original-r-api.json', 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after', '.github/development/dev786_fixed_original_runner/preflight.py', '.github/scripts/late_cycle_admission.py'}
+                  source_members = {'operator.py', 'test_fixed_rows.py', 'test_row_boundaries.py', 'fixed-r-preparation.yml', 'Dockerfile.shared-git-after', '.github/development/dev786_fixed_original_runner/preflight.py'}
                   if (export/'sources').exists():
                       for p in (export/'sources').rglob('*'):
                           if not p.is_dir() and (p.relative_to(export/'sources').as_posix() not in source_members or not stat.S_ISREG(p.lstat().st_mode) or p.stat().st_nlink != 1):
@@ -208,8 +199,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: dev786-shared-git-after-18-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/dev786-shared-git-after-18-envelope/export/
+          name: dev786-process-controls-after-19-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev786-process-controls-after-19-envelope/export/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

@@ -501,6 +501,139 @@ def cleanup_direct_children(children, setup):
     return issues
 
 
+def _row_diagnostic(setup, case_id):
+    account, unused, paths = setup
+    result = account.last_direct
+    record = {'claim': 'UNCLASSIFIED CONTROL SNAPSHOT BEFORE OUTER CLEANUP', 'case': case_id,
+              'account': {name: getattr(account, name) for name in (
+                  'metadata_visits', 'read_bytes', 'spent_bytes', 'retained_bytes',
+                  'retained_members', 'stream_bytes', 'retained_stream_bytes', 'row_seconds', 'stopped')}}
+    if result is not None:
+        record['direct'] = {name: getattr(result, name) for name in (
+            'pid', 'reason', 'cleanup_complete', 'deadline_seen', 'waitid', 'wait_status')}
+        record['direct'].update(stage=result.stage.value, elapsed=result.ended-result.started,
+                                stdout_bytes=len(result.stdout), stderr_bytes=len(result.stderr))
+    marker = paths.home / 'descendant'
+    if marker.exists():
+        descriptor = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            number = os.read(descriptor, 33)
+        finally:
+            os.close(descriptor)
+        if len(number) > 32 or not number.isdigit() or not 1 < int(number) < 2**31:
+            raise ValueError('diagnostic descendant marker')
+        try:
+            descriptor = os.open('/proc/' + number.decode('ascii') + '/stat',
+                                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except FileNotFoundError:
+            record['descendant'] = {'pid': int(number), 'observation': 'absent'}
+        else:
+            try:
+                raw = os.read(descriptor, 8193)
+            finally:
+                os.close(descriptor)
+            opening, closing = raw.find(b' ('), raw.rfind(b')')
+            if len(raw) > 8192 or opening < 1 or closing <= opening:
+                raise ValueError('diagnostic stat shape')
+            fields = raw[closing+2:].split()
+            if len(fields) < 20 or int(raw[:opening]) != int(number):
+                raise ValueError('diagnostic stat fields')
+            record['descendant'] = {'pid': int(number), 'state': fields[0].decode('ascii'),
+                                    'parent': int(fields[1]), 'group': int(fields[2]),
+                                    'session': int(fields[3]), 'starttime': int(fields[19])}
+    raw = json.dumps(record, sort_keys=True)
+    if len(raw.encode()) > 4096:
+        raise ValueError('diagnostic record bound')
+    print(raw)
+
+
+
+def _diagnostic_integer(value):
+    return value if type(value) is int and -(2**63) < value < 2**63 else None
+
+
+def _diagnostic_class(error):
+    allowed = (OSError, FileNotFoundError, PermissionError, ProcessLookupError,
+               ChildProcessError, InterruptedError, BlockingIOError, IsADirectoryError,
+               NotADirectoryError, FileExistsError, TimeoutError, ValueError, IndexError,
+               TypeError, AttributeError, KeyError, RuntimeError, AssertionError)
+    for kind in allowed:
+        if type(error) is kind:
+            return kind.__name__
+    return 'OtherException'
+
+
+@contextmanager
+def _leader_exception_observer(account):
+    previous = sys.gettrace()
+    if previous is not None:
+        raise RuntimeError('diagnostic requires no preexisting tracer')
+    codes = [value for value in runner._run_original_stage.__code__.co_consts
+             if type(value) is type(runner._run_original_stage.__code__)
+             and value.co_name == 'group_empty']
+    if len(codes) != 1:
+        raise RuntimeError('diagnostic group code identity')
+    target = codes[0]
+    event_record = None
+    observer_failed = False
+    def observe(frame, event, argument):
+        nonlocal event_record, observer_failed
+        try:
+            if frame.f_code is not target:
+                return None
+            frame.f_trace_lines = False
+            frame.f_trace_opcodes = False
+            if event != 'exception' or event_record is not None or observer_failed:
+                return observe
+            error = argument[1]
+            proc = type(error) is runner._OriginalRowRefusal and error.args == ('proc',)
+            if not isinstance(error, (OSError, ValueError, IndexError)) and not proc:
+                return observe
+            local = frame.f_locals
+            entry = local.get('entry')
+            name = entry.name if entry is not None else None
+            numeric = (int(name) if type(name) is str and len(name) <= 10
+                       and name.isascii() and name.isdecimal() else None)
+            leader = _diagnostic_integer(local.get('pid'))
+            event_record = {
+                'line': frame.f_lineno,
+                'class': 'ProcRefusal' if proc else _diagnostic_class(error),
+                'errno': _diagnostic_integer(error.errno) if isinstance(error, OSError) else None,
+                'entry_pid': numeric, 'owned_leader_match': numeric == leader if numeric is not None and leader is not None else None,
+                'owned': local.get('owned') is True, 'probing': None,
+                'terminal_present': local.get('terminal') is not None,
+                'metadata_visits': _diagnostic_integer(account.metadata_visits),
+                'read_bytes': _diagnostic_integer(account.read_bytes),
+                'spent_bytes': _diagnostic_integer(account.spent_bytes)}
+        except runner.Deadline:
+            observer_failed = True
+            raise
+        except Exception:
+            observer_failed = True
+            return None
+        return observe
+    try:
+        sys.settrace(observe)
+        yield
+    finally:
+        primary = sys.exception()
+        try:
+            sys.settrace(previous)
+        except BaseException:
+            if primary is None:
+                raise
+        try:
+            raw = json.dumps({'leader_exception': event_record,
+                              'observer_failed': observer_failed}, sort_keys=True).encode()
+            if len(raw) > 4096:
+                raw = b'{"leader_exception":null,"overflow":true}'
+            sys.stdout.write(raw.decode() + '\n')
+            sys.stdout.flush()
+        except BaseException:
+            if primary is None:
+                raise
+
+
 class FixedRows(unittest.TestCase):
     def invoke_linux(self, body):
         if sys.platform != 'linux':
@@ -518,11 +651,23 @@ class FixedRows(unittest.TestCase):
             try:
                 with mock.patch.object(subprocess, 'Popen', record):
                     with ExitStack() as patches:
-                        body(setup, patches)
+                        if self.id().endswith('.FixedRows.test_leader_exits_before_same_group_child_is_cleaned'):
+                            with _leader_exception_observer(setup[0]):
+                                body(setup, patches)
+                        else:
+                            body(setup, patches)
             except BaseException as error:
                 primary = error
                 raise
             finally:
+                diagnostic_error = None
+                try:
+                    _row_diagnostic(setup, self.id())
+                except BaseException as error:
+                    if primary is None:
+                        primary = diagnostic_error = error
+                    else:
+                        primary.add_note('bounded diagnostic failed: ' + type(error).__name__)
                 old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
                 try:
                     try:
@@ -544,6 +689,8 @@ class FixedRows(unittest.TestCase):
                         if primary is None:
                             raise
                         primary.add_note('outer mask restoration failed: ' + type(restoration_error).__name__)
+                if diagnostic_error is not None:
+                    raise diagnostic_error
 
     def test_exact_four_vectors_are_passive_and_immutable(self):
         test_exact_four_vectors_are_passive_and_immutable()
