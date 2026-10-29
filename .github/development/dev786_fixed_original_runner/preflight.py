@@ -1419,7 +1419,7 @@ def _original_vectors(tool, prepared: _PreparedPaths) -> tuple[_OriginalVector, 
         b'import runpy, sys; sys.path.append(sys.argv.pop(1)); script = sys.argv.pop(1); runpy.run_path(script, run_name="__main__")',
         site)
     base = b'9b5ad1e78430cc0b061cb16de42f73de96f4f312'
-    source = b'4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+    source = _ORIGINAL_R.encode()
     change = b'openspec/changes/security-dependencies-0-55-11-dev'
     vectors = (
         cli + (b'requirements', b'evidence', b'--repo-root', root, b'--base-ref', base,
@@ -2541,10 +2541,13 @@ class _OriginalRNotImplemented(RuntimeError):
     pass
 
 
-_ORIGINAL_R = '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
-_ORIGINAL_R_TREE = 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
+_ORIGINAL_R = '22b2fa7bd763b18ada1bfd1a9ea482a624f34cca'
+_ORIGINAL_R_TREE = 'fd6a43314d221ee03f6bf476c737487a71aa3677'
 _ORIGINAL_C_TREE = '24112d8c9983333f9059283965230348f718b74c'
-_ORIGINAL_R_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
+_ORIGINAL_R_RAW = 'e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa'
+_ORIGINAL_R_PARENT = '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+_ORIGINAL_R_PARENT_TREE = 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
+_ORIGINAL_R_PARENT_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
 _ORIGINAL_R_SOURCES = (
     ('tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
     ('tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
@@ -2843,11 +2846,11 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
     owner = repository['owner']
     _original_r_require(type(owner.get('id')) is int and owner['id'] == 225190663
                         and owner.get('login') == 'nold-ai')
-    parent = metadata(base + '/git/commits/' + C, 'parent_metadata')
-    commit_metadata(parent, C, _ORIGINAL_C_TREE)
+    proof_base = metadata(base + '/git/commits/' + C, 'parent_metadata')
+    commit_metadata(proof_base, C, _ORIGINAL_C_TREE)
     commit = metadata(base + '/git/commits/' + _ORIGINAL_R, 'commit_metadata')
     verification = commit_metadata(commit, _ORIGINAL_R, _ORIGINAL_R_TREE)
-    _original_r_require([item['sha'] for item in commit['parents']] == [C]
+    _original_r_require([item['sha'] for item in commit['parents']] == [_ORIGINAL_R_PARENT]
                         and verification['verified'] is True and verification['reason'] == 'valid'
                         and type(verification.get('signature')) is str and verification['signature']
                         and type(verification.get('payload')) is str and verification['payload'])
@@ -3291,7 +3294,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         config(initial=True)
         git('init', '--template=' + str(preparation.template.path), '.')
         config()
-        git('fetch', '--depth=2', '--no-tags', '--no-recurse-submodules',
+        git('fetch', '--depth=3', '--no-tags', '--no-recurse-submodules',
             'https://github.com/nold-ai/specfact-cli.git', _ORIGINAL_R)
     inventory()
     config()
@@ -3305,7 +3308,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
     header, separator, message = raw_commit.partition(b'\n\n')
     _original_r_require(separator)
     lines = header.split(b'\n')
-    _original_r_require([line[7:] for line in lines if line.startswith(b'parent ')] == [C.encode()]
+    _original_r_require([line[7:] for line in lines if line.startswith(b'parent ')] == [_ORIGINAL_R_PARENT.encode()]
                         and lines[0] == b'tree ' + _ORIGINAL_R_TREE.encode())
     payload_lines, signature_lines = [], []
     in_signature = False
@@ -3323,15 +3326,19 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                         == verification['signature'].encode().rstrip(b'\n')
                         and b'\n'.join(payload_lines) + b'\n\n' + message
                         == verification['payload'].encode())
-    _original_r_require(git('rev-parse', C + '^{tree}') == (_ORIGINAL_C_TREE + '\n').encode())
-    _original_r_require(git('rev-parse', _ORIGINAL_R + '^{tree}') == (_ORIGINAL_R_TREE + '\n').encode())
+    raw_parent = git('cat-file', 'commit', _ORIGINAL_R_PARENT)
+    charge(5 * len(raw_parent))
+    _original_r_require(sha(raw_parent) == _ORIGINAL_R_PARENT_RAW
+                        and raw_parent.partition(b'\n\n')[0].split(b'\n')[:2]
+                        == [b'tree ' + _ORIGINAL_R_PARENT_TREE.encode(), b'parent ' + C.encode()])
+    _original_r_require(git('rev-parse', C + '^{tree}', _ORIGINAL_R + '^{tree}')
+                        == (_ORIGINAL_C_TREE + '\n' + _ORIGINAL_R_TREE + '\n').encode())
     git('merge-base', '--is-ancestor', C, _ORIGINAL_R)
-    _original_r_require(git('rev-list', '--reverse', C + '..' + _ORIGINAL_R)
-                        == (_ORIGINAL_R + '\n').encode())
-    _original_r_require(git('rev-list', '--parents', '-n', '1', _ORIGINAL_R)
-                        == (_ORIGINAL_R + ' ' + C + '\n').encode())
+    _original_r_require(git('rev-list', '--parents', '--reverse', C + '..' + _ORIGINAL_R)
+                        == (_ORIGINAL_R_PARENT + ' ' + C + '\n'
+                            + _ORIGINAL_R + ' ' + _ORIGINAL_R_PARENT + '\n').encode())
     _original_r_require(git('merge-base', C, _ORIGINAL_R) == (C + '\n').encode())
-    changed = git('diff', '--name-status', '-z', '--find-renames', _ORIGINAL_R + '^', _ORIGINAL_R)
+    changed = git('diff', '--name-status', '-z', '--find-renames', C, _ORIGINAL_R)
     charge(3 * len(changed))
     fields = changed.split(b'\0')
     _original_r_require(fields.pop() == b'')
@@ -3444,7 +3451,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
     children_check()
     clock()
     result = _PreparedOriginalR(root, account.root.path, preparation.home.path, preparation.tmp.path,
-                                _ORIGINAL_R, C, _ORIGINAL_R_TREE, _ORIGINAL_C_TREE,
+                                _ORIGINAL_R, _ORIGINAL_R_PARENT, _ORIGINAL_R_TREE, _ORIGINAL_R_PARENT_TREE,
                                 _ORIGINAL_R_RAW, _ORIGINAL_R_SOURCES)
     return result
 
@@ -3814,7 +3821,8 @@ def _verify_original_r_live(account, prepared, tool, timer):
         preparation = account.preparation
         _proof_require(prepared == _PreparedOriginalR(
             preparation.root.path, account.root.path, preparation.home.path, preparation.tmp.path,
-            _ORIGINAL_R, C, _ORIGINAL_R_TREE, _ORIGINAL_C_TREE, _ORIGINAL_R_RAW, _ORIGINAL_R_SOURCES))
+            _ORIGINAL_R, _ORIGINAL_R_PARENT, _ORIGINAL_R_TREE, _ORIGINAL_R_PARENT_TREE,
+            _ORIGINAL_R_RAW, _ORIGINAL_R_SOURCES))
         _original_r_git_checks(account, timer, tool=tool)
     except BaseException as error:
         _proof_failed(account, error)
@@ -3843,10 +3851,10 @@ def _original15(account, prepared, tool, timer):
         _proof_require(prepared.root == account.preparation.root.path
                        and prepared.out == account.root.path and prepared.home == account.preparation.home.path
                        and prepared.tmp == account.preparation.tmp.path
-                       and prepared.commit == '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
-                       and prepared.parent == C and prepared.tree == 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
-                       and prepared.parent_tree == '24112d8c9983333f9059283965230348f718b74c'
-                       and prepared.raw_commit_sha256 == '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
+                       and prepared.commit == _ORIGINAL_R
+                       and prepared.parent == _ORIGINAL_R_PARENT and prepared.tree == _ORIGINAL_R_TREE
+                       and prepared.parent_tree == _ORIGINAL_R_PARENT_TREE
+                       and prepared.raw_commit_sha256 == _ORIGINAL_R_RAW
                        and prepared.sources == tuple((path, digest) for label, path, digest in _FIXED_SOURCES if label == 'R'))
         account.source_roots = (account.policy, tool.core_root, tool.modules_root, prepared.root)
         def sources():
@@ -4307,7 +4315,7 @@ def _finish_original15(account, original, published):
                         'subjects': account.subjects,
                         'preparation': {'complete': account.preparation.complete,
                             'repository': base64.b64encode(account.preparation.repository_metadata or b'').decode(),
-                            'parent': base64.b64encode(account.preparation.parent_metadata or b'').decode(),
+                            'proof_base': base64.b64encode(account.preparation.parent_metadata or b'').decode(),
                             'commit': base64.b64encode(account.preparation.commit_metadata or b'').decode(),
                             'commands': [(base64.b64encode(c.receipt).decode(),
                                           base64.b64encode(c.stdout).decode(), base64.b64encode(c.stderr).decode())
