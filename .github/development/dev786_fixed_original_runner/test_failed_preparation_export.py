@@ -17,6 +17,20 @@ target = fixtures.TARGET
 
 
 class FailedPreparationExport(unittest.TestCase):
+    def test_cleanup_refusal_is_retained_in_incomplete_footer(self):
+        with fixtures.owned_account() as account:
+            children = fixtures.registered_children(account)
+            account.metadata_visits = 64000
+            result = target._finish_original15(account, fixtures.failed_original(), fixtures.not_published())
+            self.assertFalse(result.complete)
+            self.assertTrue(all(not row.deleted for row in result.cleanup))
+            self.assertTrue(all(child.path.exists() for child in children))
+            footer = json.loads((account.export_path / 'closure.json').read_bytes())
+            self.assertFalse(footer['complete'])
+            self.assertEqual(len(footer['cleanup']), 5)
+            self.assertTrue(all(not row['deleted'] for row in footer['cleanup']))
+            self.assertIn('scratch-cleanup-incomplete', footer['diagnostics'])
+
     def test_captured_command_survives_later_bulk_join_refusal(self):
         with fixtures.owned_account() as account:
             fixtures.registered_children(account)
