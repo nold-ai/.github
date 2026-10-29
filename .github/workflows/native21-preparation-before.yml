@@ -1,0 +1,254 @@
+name: Native21 preparation intended before 31
+on:
+  push:
+    branches: [codex/dev786-native21-before-31]
+    paths: [.github/workflows/native21-preparation-before.yml]
+permissions:
+  contents: read
+jobs:
+  expected-before:
+    name: Native21 preparation before (development only)
+    if: github.repository == 'nold-ai/.github' && github.event.deleted != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable test-first auxiliary source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Admit exact preparation test sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(/usr/bin/git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir "$RUNNER_TEMP/native21-before-31"
+          mkdir "$RUNNER_TEMP/native21-before-31/capture" "$RUNNER_TEMP/native21-before-31/packet"
+          mkdir "$RUNNER_TEMP/native21-before-31/home" "$RUNNER_TEMP/native21-before-31/tmp"
+          /usr/bin/python3 -I -S - <<'PYTHON'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          import stat
+
+          members = (
+              ('.github/development/dev786_fixed_original_runner/preflight.py', 238916, '7965a9752618aeeb520dba03a3bd612e6577267d8d78d07ec4f0f390bd851e5c'),
+              ('.github/scripts/late_cycle_admission.py', 41624, '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'),
+              ('.github/development/dev786_fixed_original_runner/test_remaining_original15.py', 58024, '35604365c757c9b4a5ae662e9455d85fc68f8392a5a3bb6162f549936ecad082'),
+              ('.github/development/dev786_fixed_original_runner/test_prepare_original_r.py', 41453, '8b8a5ebc0ddcbfd545d868d34771abc1698fb87f44b30e7b1d3207e6459c340f'),
+              ('.github/development/dev786_fixed_original_runner/test_native21_scope.py', 18413, '3c127bc1fe7eafbde3277e4e9986e07b52287e45fc11413faf9f146f9ae015fc'),
+              ('.github/development/dev786_fixed_original_runner/original-r-api.json', 2784, 'fc6c12457844561262a9a8e92382ae53afe6c163214f77c9ae2e2cc4746f11fb'),
+              ('.github/development/dev786_fixed_original_runner/data/r2-api.json', 2651, '0cee93265122f9d902c1f6ea16030be852710b579915ec781b3e6f4e321c8a65'),
+              ('.github/development/dev786_fixed_original_runner/data/sources.json', 1907, 'd98514bf0d2befa4e82a4b51d093390b8c022ff8437d2a211625e9fd6ad61298'),
+          )
+          if len(members) != 8 or len({item[0] for item in members}) != 8:
+              raise SystemExit("fixed source membership")
+          workspace = Path(os.environ["GITHUB_WORKSPACE"])
+          whole = preflight_bytes = 0
+          for relative, size, digest in members:
+              path = workspace / relative
+              if not stat.S_ISREG(path.lstat().st_mode):
+                  raise SystemExit("source kind: " + relative)
+              fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+              with os.fdopen(fd, "rb") as source:
+                  if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                      raise SystemExit("opened source kind: " + relative)
+                  raw = source.read(size + 1)
+              if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
+                  raise SystemExit("source identity: " + relative)
+              whole += len(raw)
+              if relative.endswith("/preflight.py"):
+                  preflight_bytes = len(raw)
+          path = workspace / ".github/workflows/native21-preparation-before.yml"
+          if not stat.S_ISREG(path.lstat().st_mode):
+              raise SystemExit("workflow source kind")
+          fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+          with os.fdopen(fd, "rb") as source:
+              if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                  raise SystemExit("opened workflow source kind")
+              workflow = source.read(458753)
+          whole += len(workflow)
+          if whole > 458752 or whole - preflight_bytes > 262144:
+              raise SystemExit("complete decoded source budget")
+          if not (
+              os.environ.get("GITHUB_EVENT_NAME") == "push"
+              and os.environ.get("GITHUB_REPOSITORY") == "nold-ai/.github"
+              and os.environ.get("GITHUB_REPOSITORY_ID") == "1110267669"
+              and os.environ.get("GITHUB_REPOSITORY_OWNER_ID") == "225190663"
+              and os.environ.get("GITHUB_REF") == "refs/heads/codex/dev786-native21-before-31"
+              and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+              and re.fullmatch("[0-9a-f]{40}", os.environ.get("GITHUB_SHA", ""))
+              and os.environ.get("GITHUB_WORKFLOW_SHA") == os.environ.get("GITHUB_SHA")
+          ):
+              raise SystemExit("fixed first-attempt workflow context")
+          print("Admitted whole/helper bytes:", whole, whole - preflight_bytes)
+          PYTHON
+      - name: Checkout exact read-only R2 Git fixture
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: nold-ai/specfact-cli
+          ref: 22b2fa7bd763b18ada1bfd1a9ea482a624f34cca
+          fetch-depth: 3
+          path: native21-before-core
+          persist-credentials: false
+      - name: Verify exact Git fixture tree raw commit and chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -S - <<'PYTHON'
+          import hashlib
+          import os
+          from pathlib import Path
+          import subprocess
+
+          root = Path(os.environ["GITHUB_WORKSPACE"]) / "native21-before-core"
+          def git(*args):
+              return subprocess.run(["/usr/bin/git", "-C", str(root), *args],
+                  check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30).stdout
+          c = "9b5ad1e78430cc0b061cb16de42f73de96f4f312"
+          old = "4ae6175a4d337296d0347e73b66c9da1f0e43f7f"
+          r2 = "22b2fa7bd763b18ada1bfd1a9ea482a624f34cca"
+          expected = (
+              (("rev-parse", "HEAD"), r2),
+              (("rev-parse", "HEAD^{tree}"), "fd6a43314d221ee03f6bf476c737487a71aa3677"),
+              (("rev-parse", old + "^{tree}"), "baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e"),
+              (("rev-parse", c + "^{tree}"), "24112d8c9983333f9059283965230348f718b74c"),
+              (("merge-base", c, r2), c),
+              (("rev-list", "--parents", "-n", "1", r2), r2 + " " + old),
+              (("rev-list", "--parents", "-n", "1", old), old + " " + c),
+              (("remote", "get-url", "origin"), "https://github.com/nold-ai/specfact-cli"),
+          )
+          for args, value in expected:
+              if git(*args) != (value + "\n").encode():
+                  raise SystemExit("Git fixture identity")
+          if git("rev-list", "--reverse", c + ".." + r2) != (old + "\n" + r2 + "\n").encode():
+              raise SystemExit("Git fixture chain")
+          if (root / ".git/shallow").read_bytes() != (c + "\n").encode():
+              raise SystemExit("Git fixture shallow boundary")
+          raw = git("cat-file", "commit", r2)
+          if len(raw) > 65536 or hashlib.sha256(raw).hexdigest() != "e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa":
+              raise SystemExit("Git fixture raw commit")
+          git("fsck", "--full", "--strict", "--no-reflogs")
+          if git("status", "--porcelain", "--untracked-files=all"):
+              raise SystemExit("Git fixture not clean")
+          auth = subprocess.run(["/usr/bin/git", "-C", str(root), "config", "--local",
+              "--get-regexp", r"http\..*\.extraheader"],
+              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+          if auth.returncode != 1 or auth.stdout:
+              raise SystemExit("Git fixture retained checkout credential")
+          PYTHON
+      - name: Run unchanged baseline preparation regression once
+        id: regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          base="$GITHUB_WORKSPACE/.github/development/dev786_fixed_original_runner"
+          capture="$RUNNER_TEMP/native21-before-31/capture"
+          set +e
+          env -i HOME="$RUNNER_TEMP/native21-before-31/home" TMPDIR="$RUNNER_TEMP/native21-before-31/tmp" \
+            PATH=/usr/bin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+            /usr/bin/python3 -I -B "$base/test_native21_scope.py" \
+            --candidate "$base/preflight.py" --fixtures "$base" \
+            --policy-helper "$GITHUB_WORKSPACE/.github/scripts/late_cycle_admission.py" \
+            --git-source "$GITHUB_WORKSPACE/native21-before-core" --mode preparation \
+            > "$capture/stdout.txt" 2> "$capture/stderr.txt"
+          test_exit=$?
+          set -e
+          printf '%s\n' "$test_exit" > "$capture/exit.txt"
+          test "$(/usr/bin/git -C "$GITHUB_WORKSPACE/native21-before-core" rev-parse HEAD)" = "22b2fa7bd763b18ada1bfd1a9ea482a624f34cca"
+          fixture_status="$(/usr/bin/git -C "$GITHUB_WORKSPACE/native21-before-core" status --porcelain --untracked-files=all)"
+          test -z "$fixture_status"
+      - name: Require four exact intended assertion failures
+        if: always()
+        shell: bash
+        env:
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+        run: |
+          set -euo pipefail
+          umask 077
+          /usr/bin/python3 -I -S - <<'PYTHON'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import stat
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "native21-before-31"
+          capture, packet = root / "capture", root / "packet"
+          if not packet.is_dir():
+              raise SystemExit("source admission did not initialize packet")
+          result = {"scope": "Synthetic API and actual local Git preparation before; no native21 or readiness credit",
+                    "complete": False, "qualified_before": False}
+          try:
+              if os.environ.get("REGRESSION_OUTCOME") != "success":
+                  raise ValueError("regression step did not complete all post-test guards")
+              logs = {}
+              for name in ("stdout.txt", "stderr.txt", "exit.txt"):
+                  path = capture / name
+                  bound = 16 if name == "exit.txt" else 2097152
+                  value = path.lstat()
+                  if not stat.S_ISREG(value.st_mode) or value.st_size > bound:
+                      raise ValueError("bounded capture refused")
+                  raw = path.read_bytes()
+                  if len(raw) != value.st_size:
+                      raise ValueError("capture changed")
+                  logs[name] = raw
+              result["test_exit"] = int(logs["exit.txt"].decode().strip())
+              stderr = logs["stderr.txt"].decode("utf-8", "strict")
+              names = {
+                  "test_c_as_r2_immediate_parent_is_refused_before_fetch",
+                  "test_existing_vectors_keep_c_and_r2_in_distinct_roles",
+                  "test_new_selected_source_corruption_refuses_live_use",
+                  "test_real_objects_two_commit_chain_and_twelve_subject_bytes",
+              }
+              headers = list(re.finditer(r"(?m)^FAIL: ([a-z0-9_]+) \(__main__\.Preparation\.([a-z0-9_]+)\)\n", stderr))
+              if (result["test_exit"] != 1 or len(headers) != 4
+                  or {match[1] for match in headers} != names
+                  or any(match[1] != match[2] for match in headers)
+                  or re.search(r"(?m)^ERROR:", stderr)
+                  or not re.search(r"(?m)^Ran 4 tests in [0-9]+(?:\.[0-9]+)?s$", stderr)
+                  or stderr.strip().splitlines()[-1] != "FAILED (failures=4)"):
+                  raise ValueError("not four exact unittest assertion failures")
+              for index, match in enumerate(headers):
+                  block = stderr[match.end():headers[index + 1].start() if index + 1 < len(headers) else len(stderr)]
+                  if match[1] == "test_c_as_r2_immediate_parent_is_refused_before_fetch":
+                      if "AssertionError: _OriginalRPreparationError not raised" not in block:
+                          raise ValueError("parent control failed at another boundary")
+                  elif not all(marker in block for marker in (
+                      "AssertionError: Tuples differ:",
+                      "22b2fa7bd763b18ada1bfd1a9ea482a624f34cca",
+                      "4ae6175a4d337296d0347e73b66c9da1f0e43f7f",
+                      "9b5ad1e78430cc0b061cb16de42f73de96f4f312",
+                      "fd6a43314d221ee03f6bf476c737487a71aa3677",
+                      "baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e",
+                  )):
+                      raise ValueError("refreshed subject failed before intended tuple comparison")
+              for name in ("stdout.txt", "stderr.txt", "exit.txt"):
+                  (packet / name).write_bytes(logs[name])
+              result.update(complete=True, qualified_before=True, intended_failures=4, errors=0, skips=0,
+                  stdout_sha256=hashlib.sha256(logs["stdout.txt"]).hexdigest(),
+                  stderr_sha256=hashlib.sha256(logs["stderr.txt"]).hexdigest())
+          except (OSError, ValueError, UnicodeError, IndexError) as error:
+              result["reason"] = type(error).__name__ + ": " + str(error)
+          raw = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
+          if len(raw) > 4096:
+              raise SystemExit("fixed result bound")
+          (packet / "before-result.json").write_bytes(raw)
+          if not result["qualified_before"]:
+              raise SystemExit("Intended preparation before was not established")
+          print("Four intended preparation assertions; zero errors/skips. Development test-first evidence only.")
+          PYTHON
+      - name: Retain bounded expected-before outcome
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dev786-native21-preparation-before-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native21-before-31/packet/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
