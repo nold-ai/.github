@@ -30,6 +30,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 MIB = 1024 * 1024
+_ORIGINAL_WORK_CAP = 512 * MIB
+_ORIGINAL_METADATA_VISITS = 128000
+_ORIGINAL_READ_CAP = 255 * MIB
 P = '46a4f141de4497c1f46a6114683308fd6f3b2525'
 I = '1' * 40
 C = '9b5ad1e78430cc0b061cb16de42f73de96f4f312'
@@ -1037,7 +1040,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-27',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-28',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -1537,7 +1540,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
         clock_check()
         if time.monotonic() >= end:
             refuse('cleanup')
-        if account.metadata_visits >= 64000:
+        if account.metadata_visits >= _ORIGINAL_METADATA_VISITS:
             refuse('budget')
         account.metadata_visits += 1
 
@@ -1600,7 +1603,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                         refuse('proc')
                     visit(end)
                     before = account.spent_bytes
-                    if before + outstanding() + 8193 > 255 * MIB:
+                    if before + outstanding() + 8193 > (_ORIGINAL_WORK_CAP - MIB):
                         refuse('budget')
                     descriptor = None
                     try:
@@ -1615,8 +1618,17 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                         clock_check()
                         if time.monotonic() >= end:
                             refuse('cleanup')
-                        raw = os.read(descriptor, 8193)
-                        account.read_bytes += len(raw)
+                        read_max = 8193
+                        if not (read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP):
+                            refuse('budget')
+                        read_before = account.read_bytes
+                        try:
+                            raw = os.read(descriptor, 8193)
+                            account.read_bytes += len(raw)
+                        except BaseException:
+                            account.read_bytes = max(account.read_bytes, read_before + read_max)
+                            account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                            raise
                         account.spent_bytes += len(raw)
                         if not raw or len(raw) > 8192:
                             refuse('proc')
@@ -1681,19 +1693,28 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                 refuse('cleanup')
             capacity = min(8 * MIB - sizes[index], 16 * MIB - account.stream_bytes,
                            16 * MIB - retained_before - sum(sizes))
-            available = 255 * MIB - account.spent_bytes - outstanding()
+            available = (_ORIGINAL_WORK_CAP - MIB) - account.spent_bytes - outstanding()
             count = min(65536, capacity + 1, available // (len(account.secrets) + 3))
             if count <= 0:
                 refuse('budget')
             before = account.spent_bytes
             try:
-                raw = os.read(pipe.fileno(), count)
+                read_max = count
+                if not (read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP):
+                    refuse('budget')
+                read_before = account.read_bytes
+                try:
+                    raw = os.read(pipe.fileno(), count)
+                    account.read_bytes += len(raw)
+                except BaseException:
+                    account.read_bytes = max(account.read_bytes, read_before + read_max)
+                    account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                    raise
             except BlockingIOError:
                 continue
             except BaseException:
                 account.spent_bytes = max(account.spent_bytes, before + (len(account.secrets) + 3) * count)
                 raise
-            account.read_bytes += len(raw)
             account.stream_bytes += len(raw)
             account.spent_bytes += len(raw)
             progressed = True
@@ -1821,12 +1842,12 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
     try:
         if (type(account.stopped) is not bool or account.stopped
                 or not _owned_integer(account.deadline_ns, 2**63 - 1, 1)
-                or not _owned_integer(account.spent_bytes, 255 * MIB)
+                or not _owned_integer(account.spent_bytes, (_ORIGINAL_WORK_CAP - MIB))
                 or not _owned_integer(account.read_bytes, 255 * MIB)
                 or account.read_bytes > account.spent_bytes
                 or not _owned_integer(account.retained_bytes, 16 * MIB)
                 or not _owned_integer(account.retained_members, 64)
-                or not _owned_integer(account.metadata_visits, 64000)
+                or not _owned_integer(account.metadata_visits, _ORIGINAL_METADATA_VISITS)
                 or not _owned_integer(account.stream_bytes, 16 * MIB)
                 or not _owned_integer(account.retained_stream_bytes, 16 * MIB)
                 or type(account.row_seconds) not in (int, float)
@@ -1835,7 +1856,7 @@ def _run_original_stage(account, tool, prepared: _PreparedPaths, timer,
                 or any(type(secret) is not bytes or not 8 <= len(secret) <= 4096
                        for secret in account.secrets)):
             refuse('budget')
-        if (account.spent_bytes >= 255 * MIB or account.metadata_visits >= 64000
+        if (account.spent_bytes >= (_ORIGINAL_WORK_CAP - MIB) or account.metadata_visits >= _ORIGINAL_METADATA_VISITS
                 or account.stream_bytes >= 16 * MIB or account.retained_stream_bytes >= 16 * MIB):
             refuse('budget')
         if (type(timer) is not Timer or type(timer.end) not in (int, float)
@@ -2310,7 +2331,7 @@ def _owned_clock(account: _AttemptAccount) -> None:
 
 def _owned_visit(account: _AttemptAccount) -> None:
     _owned_clock(account)
-    _owned_require(account.metadata_visits < 64000)
+    _owned_require(account.metadata_visits < _ORIGINAL_METADATA_VISITS)
     account.metadata_visits += 1
 
 
@@ -2363,12 +2384,12 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                            for number in (root.uid, root.mode)))
         _owned_require(root.uid == os.getuid() and root.mode == stat.S_IFDIR | 0o700)
         _owned_require(_owned_integer(account.deadline_ns, 2**63 - 1, 1))
-        _owned_require(_owned_integer(account.spent_bytes, 255 * MIB)
+        _owned_require(_owned_integer(account.spent_bytes, (_ORIGINAL_WORK_CAP - MIB))
                        and _owned_integer(account.read_bytes, 255 * MIB)
                        and account.read_bytes <= account.spent_bytes
                        and _owned_integer(account.retained_bytes, 16 * MIB)
                        and _owned_integer(account.retained_members, 64)
-                       and _owned_integer(account.metadata_visits, 64000))
+                       and _owned_integer(account.metadata_visits, _ORIGINAL_METADATA_VISITS))
         _owned_require(type(account.secrets) is tuple and len(account.secrets) <= 32)
         _owned_require(all(type(secret) is bytes and 8 <= len(secret) <= 4096
                            for secret in account.secrets))
@@ -2378,7 +2399,7 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                        and 1 <= depth <= 64 and len(os.fsencode(name)) <= 4096
                        and os.path.normpath(name) == name
                        and all(part not in ('.', '..') for part in root.path.parts[1:]))
-        _owned_require(account.metadata_visits + 2 * depth + 6 <= 64000)
+        _owned_require(account.metadata_visits + 2 * depth + 6 <= _ORIGINAL_METADATA_VISITS)
         flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
         _owned_clock(account)
         _owned_root_check(account)
@@ -2387,7 +2408,8 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
                                               follow_symlinks=False), role)
         size = before.size
         work = (len(account.secrets) + 4) * (size + 1)
-        _owned_require(account.spent_bytes + work <= 255 * MIB
+        _owned_require(account.spent_bytes + work <= (_ORIGINAL_WORK_CAP - MIB)
+                       and account.read_bytes + size + 1 <= _ORIGINAL_READ_CAP
                        and account.retained_bytes + size <= 16 * MIB
                        and account.retained_members + 1 <= 64)
         admitted = work
@@ -2398,8 +2420,16 @@ def _read_owned(account: _AttemptAccount, role: _SourceRole) -> _CompleteOwnedRe
             opened = _proof_file_identity(os.fstat(descriptor), role)
             _owned_require(opened == before)
             _owned_clock(account)
-            data = os.read(descriptor, size + 1)
-            account.read_bytes += len(data)
+            read_max = size + 1
+            _owned_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+            read_before = account.read_bytes
+            try:
+                data = os.read(descriptor, size + 1)
+                account.read_bytes += len(data)
+            except BaseException:
+                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                raise
             _owned_require(len(data) == size)
             _owned_clock(account)
             digest = hashlib.sha256(data).hexdigest()
@@ -2557,9 +2587,9 @@ def _prepare_original_r(account, api):
         _original_r_require(all(_owned_integer(value, upper) for value, upper in (
             (account.root.device, 2**64 - 1), (account.root.inode, 2**64 - 1),
             (account.root.uid, 2**32 - 1), (account.root.mode, 2**32 - 1),
-            (account.spent_bytes, 255 * MIB), (account.read_bytes, 255 * MIB),
+            (account.spent_bytes, (_ORIGINAL_WORK_CAP - MIB)), (account.read_bytes, 255 * MIB),
             (account.retained_bytes, 16 * MIB), (account.retained_members, 64),
-            (account.metadata_visits, 64000))))
+            (account.metadata_visits, _ORIGINAL_METADATA_VISITS))))
         _original_r_require(account.read_bytes <= account.spent_bytes
                             and type(account.secrets) is tuple and len(account.secrets) <= 32
                             and all(type(value) is bytes and 8 <= len(value) <= 4096
@@ -2612,9 +2642,9 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         _original_r_require(all(_owned_integer(value, upper) for value, upper in (
             (account.root.device, 2**64 - 1), (account.root.inode, 2**64 - 1),
             (account.root.uid, 2**32 - 1), (account.root.mode, 2**32 - 1),
-            (account.spent_bytes, 255 * MIB), (account.read_bytes, 255 * MIB),
+            (account.spent_bytes, (_ORIGINAL_WORK_CAP - MIB)), (account.read_bytes, 255 * MIB),
             (account.retained_bytes, 16 * MIB), (account.retained_members, 64),
-            (account.metadata_visits, 64000))))
+            (account.metadata_visits, _ORIGINAL_METADATA_VISITS))))
         _original_r_require(account.read_bytes <= account.spent_bytes
                             and type(account.secrets) is tuple and len(account.secrets) <= 32
                             and all(type(value) is bytes and 8 <= len(value) <= 4096
@@ -2650,12 +2680,12 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
             clock()
         else:
             _original_r_require(time.monotonic_ns() < end)
-        _original_r_require(account.metadata_visits < 64000)
+        _original_r_require(account.metadata_visits < _ORIGINAL_METADATA_VISITS)
         account.metadata_visits += 1
 
     def charge(size):
         _original_r_require(type(size) is int and size >= 0
-                            and account.spent_bytes + size <= 255 * MIB)
+                            and account.spent_bytes + size <= (_ORIGINAL_WORK_CAP - MIB))
         account.spent_bytes += size
 
     def sensitive(raw):
@@ -2744,12 +2774,21 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
             return value
         maximum = (len(account.secrets) + 5) * (4 * MIB + 1)
         before = account.spent_bytes
-        _original_r_require(before + maximum <= 255 * MIB)
+        _original_r_require(before + maximum <= (_ORIGINAL_WORK_CAP - MIB))
         try:
-            raw = transport.get(path)
+            read_max = 4 * MIB + 1
+            _original_r_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+            read_before = account.read_bytes
+            try:
+                raw = transport.get(path)
+                _original_r_require(type(raw) is bytes and len(raw) <= read_max)
+                account.read_bytes += len(raw)
+            except BaseException:
+                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                raise
             with _original_r_registration():
                 _original_r_require(type(raw) is bytes and len(raw) <= 4 * MIB)
-                account.read_bytes += len(raw)
                 charge((len(account.secrets) + 5) * len(raw))
             sensitive(raw)
             value = sys.modules['late_cycle_admission'].json_object(raw)
@@ -2811,7 +2850,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         record = _OriginalRGit(('/usr/bin/git', *arguments), began, end)
         _original_r_require(len(preparation.commands) < 96
                             and preparation.metadata_bytes + account.metadata_bytes + 65536 <= 8 * MIB - 65536
-                            and account.spent_bytes + 131072 <= 255 * MIB)
+                            and account.spent_bytes + 131072 <= (_ORIGINAL_WORK_CAP - MIB))
         preparation.commands += (record,)
         child = None
         owned = False
@@ -2886,7 +2925,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                         continue
                     _original_r_require(len(entry.name) <= 10)
                     visit(deadline)
-                    _original_r_require(account.spent_bytes + 3 * 8193 <= 255 * MIB)
+                    _original_r_require(account.spent_bytes + 3 * 8193 <= (_ORIGINAL_WORK_CAP - MIB))
                     descriptor = None
                     before = account.spent_bytes
                     try:
@@ -2894,8 +2933,16 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                             descriptor = os.open('/proc/' + entry.name + '/stat',
                                                  os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
                         with _original_r_registration():
-                            raw = os.read(descriptor, 8193)
-                            account.read_bytes += len(raw)
+                            read_max = 8193
+                            _original_r_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                            read_before = account.read_bytes
+                            try:
+                                raw = os.read(descriptor, 8193)
+                                account.read_bytes += len(raw)
+                            except BaseException:
+                                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                                raise
                             charge(3 * len(raw))
                         _original_r_require(0 < len(raw) <= 8192)
                         opening, closing = raw.find(b' ('), raw.rfind(b') ')
@@ -2937,10 +2984,18 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                                8 * MIB - 65536 - 65536 - preparation.metadata_bytes - account.metadata_bytes)
                 count = min(65536, capacity + 1)
                 _original_r_require(count > 0 and account.spent_bytes
-                                    + (len(account.secrets) + 4) * count + 131072 <= 255 * MIB)
+                                    + (len(account.secrets) + 4) * count + 131072 <= (_ORIGINAL_WORK_CAP - MIB))
                 with _original_r_registration():
-                    raw = os.read(pipe.fileno(), count)
-                    account.read_bytes += len(raw)
+                    read_max = count
+                    _original_r_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                    read_before = account.read_bytes
+                    try:
+                        raw = os.read(pipe.fileno(), count)
+                        account.read_bytes += len(raw)
+                    except BaseException:
+                        account.read_bytes = max(account.read_bytes, read_before + read_max)
+                        account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                        raise
                     charge((len(account.secrets) + 4) * len(raw))
                     _original_r_require(len(raw) <= capacity)
                     if raw:
@@ -3071,7 +3126,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                                      or time.monotonic_ns() >= end else 'incomplete')
                 before = account.spent_bytes
                 maximum = 131072 + len(record.stdout) + len(record.stderr)
-                _original_r_require(before + maximum <= 255 * MIB)
+                _original_r_require(before + maximum <= (_ORIGINAL_WORK_CAP - MIB))
                 try:
                     receipt = encoded({'argv': record.argv, 'cwd': str(root), 'environment': environment,
                                        'started_ns': record.started_ns, 'deadline_ns': record.deadline_ns,
@@ -3190,8 +3245,16 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
             visit()
             _original_r_require(identity(os.fstat(opened)) == identity(before))
             with _original_r_registration():
-                raw = os.read(opened, before.st_size + 1)
-                account.read_bytes += len(raw)
+                read_max = before.st_size + 1
+                _original_r_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                read_before = account.read_bytes
+                try:
+                    raw = os.read(opened, before.st_size + 1)
+                    account.read_bytes += len(raw)
+                except BaseException:
+                    account.read_bytes = max(account.read_bytes, read_before + read_max)
+                    account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                    raise
             _original_r_require(len(raw) == before.st_size)
             sensitive(raw)
             visit()
@@ -3406,7 +3469,7 @@ def _proof_charge(account, amount, *, closure=False):
         _proof_final_clock(account)
     else:
         _owned_clock(account)
-    limit = 256 * MIB if closure else 255 * MIB
+    limit = _ORIGINAL_WORK_CAP if closure else (_ORIGINAL_WORK_CAP - MIB)
     _proof_require(account.spent_bytes + amount <= limit)
     if closure:
         _proof_require(account.closure_bytes + amount <= MIB)
@@ -3474,8 +3537,16 @@ def _read_fixed_source(account, role):
             _owned_visit(account)
             opened = identity(os.fstat(fd))
             _proof_require(opened == before)
-            raw = os.read(fd, before.size + 1)
-            account.read_bytes += len(raw)
+            read_max = before.size + 1
+            _proof_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+            read_before = account.read_bytes
+            try:
+                raw = os.read(fd, before.size + 1)
+                account.read_bytes += len(raw)
+            except BaseException:
+                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                raise
             _proof_require(len(raw) == before.size)
             _proof_safe(account, raw)
             _owned_visit(account)
@@ -3671,10 +3742,19 @@ def _check_current_boundary(account, api):
         values, records = [], []
         for path in paths:
             _proof_charge(account, 0)
-            _proof_require(account.spent_bytes + (len(account.secrets) + 3) * 4 * MIB <= 255 * MIB)
-            raw = client.get(path)
+            _proof_require(account.spent_bytes + (len(account.secrets) + 3) * 4 * MIB <= (_ORIGINAL_WORK_CAP - MIB))
+            read_max = 4 * MIB + 1
+            _proof_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+            read_before = account.read_bytes
+            try:
+                raw = client.get(path)
+                _proof_require(type(raw) is bytes and len(raw) <= read_max)
+                account.read_bytes += len(raw)
+            except BaseException:
+                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                raise
             _proof_require(type(raw) is bytes)
-            account.read_bytes += len(raw)
             _proof_charge(account, (len(account.secrets) + 3) * len(raw))
             _proof_require(len(raw) <= 4 * MIB and account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) + len(raw) <= 8 * MIB - 65536)
             _proof_safe(account, raw)
@@ -3786,8 +3866,16 @@ def _original15(account, prepared, tool, timer):
                                     before = os.fstat(fd)
                                     _proof_require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
                                                    == (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns))
-                                    raw = os.read(fd, value.st_size + 1)
-                                    account.read_bytes += len(raw)
+                                    read_max = value.st_size + 1
+                                    _proof_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                                    read_before = account.read_bytes
+                                    try:
+                                        raw = os.read(fd, value.st_size + 1)
+                                        account.read_bytes += len(raw)
+                                    except BaseException:
+                                        account.read_bytes = max(account.read_bytes, read_before + read_max)
+                                        account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                                        raise
                                     after = os.fstat(fd)
                                     _proof_require(len(raw) == value.st_size
                                                    and (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
@@ -3848,8 +3936,16 @@ def _original15(account, prepared, tool, timer):
                 _proof_require(fields(os.fstat(fd)) == fields(before))
                 while total < before.st_size:
                     safe_point()
-                    raw = os.read(fd, min(65536, before.st_size - total))
-                    account.read_bytes += len(raw)
+                    read_max = min(65536, before.st_size - total)
+                    _proof_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                    read_before = account.read_bytes
+                    try:
+                        raw = os.read(fd, min(65536, before.st_size - total))
+                        account.read_bytes += len(raw)
+                    except BaseException:
+                        account.read_bytes = max(account.read_bytes, read_before + read_max)
+                        account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                        raise
                     _proof_require(bool(raw))
                     total += len(raw)
                     digest.update(raw)
@@ -4081,8 +4177,16 @@ def _finish_original15(account, original, published):
                         _proof_require(identity(os.fstat(fd)) == identity(before))
                         while total < before.st_size:
                             _proof_final_clock(account)
-                            chunk = os.read(fd, min(65536, before.st_size - total))
-                            account.read_bytes += len(chunk)
+                            read_max = min(65536, before.st_size - total)
+                            _proof_require(read_max >= 0 and account.read_bytes + read_max <= _ORIGINAL_READ_CAP)
+                            read_before = account.read_bytes
+                            try:
+                                chunk = os.read(fd, min(65536, before.st_size - total))
+                                account.read_bytes += len(chunk)
+                            except BaseException:
+                                account.read_bytes = max(account.read_bytes, read_before + read_max)
+                                account.spent_bytes = max(account.spent_bytes, account.read_bytes)
+                                raise
                             _proof_require(bool(chunk))
                             total += len(chunk)
                             digest.update(chunk)
@@ -4273,7 +4377,7 @@ def _finish_original15(account, original, published):
                     with os.scandir(directory) as entries:
                         for entry in entries:
                             _proof_final_clock(account)
-                            _proof_require(account.metadata_visits + 2 <= 64000)
+                            _proof_require(account.metadata_visits + 2 <= _ORIGINAL_METADATA_VISITS)
                             account.metadata_visits += 2
                             if entry.is_dir(follow_symlinks=False):
                                 inspect(Path(entry.path), depth + 1)
