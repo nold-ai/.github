@@ -1,0 +1,50 @@
+[
+  {
+    "path": "tests/unit/scripts/test_dependency_compatibility_workflow.py",
+    "sha256": "416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa"
+  },
+  {
+    "path": "tests/unit/scripts/test_dependency_trust_review.py",
+    "sha256": "bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac"
+  },
+  {
+    "path": "tests/unit/scripts/test_security_audit_gate.py",
+    "sha256": "d7540a8a7e47b66880fea77f19acdc3cb29cd0e7a37b786b180cf3ca67813e0a"
+  },
+  {
+    "path": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+    "sha256": "c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af"
+  },
+  {
+    "path": "tests/unit/security/test_release_dependency_selection.py",
+    "sha256": "aa8ae11968ef7e026599e57e0f47522717726fb8477de62c32ad5944d62684b5"
+  },
+  {
+    "path": "scripts/requirements_proof_pytest_plugin.py",
+    "sha256": "31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8"
+  },
+  {
+    "path": "openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml",
+    "sha256": "eecbefc8d5764606b943e53dbd784f813f3999ad1ce8c3a1b40af763d3298212"
+  },
+  {
+    "path": "openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json",
+    "sha256": "7e29d9b17fbbe440e02a8ee599b694d9bc52ab7d7cdbcf43c137879284e830ab"
+  },
+  {
+    "path": "requirements/ci/locked.txt",
+    "sha256": "0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266"
+  },
+  {
+    "path": "uv.lock",
+    "sha256": "850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7"
+  },
+  {
+    "path": "tests/unit/security/test_code_review_dependency_security.py",
+    "sha256": "ffc5a4e3f9f1b2b5574a970ab8e5673a68b647f865e620224f788fa5e773b59e"
+  },
+  {
+    "path": "tests/unit/security/test_release_promotion_security_gates.py",
+    "sha256": "32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093"
+  }
+]

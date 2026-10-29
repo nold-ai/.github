@@ -1,0 +1,261 @@
+[
+  {
+    "case_id": "DEV-OTEL-EXACT-CVE",
+    "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]",
+    "classname": "tests.unit.scripts.test_security_audit_gate",
+    "name": "test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]",
+    "file": "tests/unit/scripts/test_security_audit_gate.py",
+    "line": 272,
+    "markers": [
+      "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+      "AssertionError: assert 1 == 0"
+    ]
+  },
+  {
+    "case_id": "DEV-OTEL-EXACT-GHSA",
+    "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]",
+    "classname": "tests.unit.scripts.test_security_audit_gate",
+    "name": "test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]",
+    "file": "tests/unit/scripts/test_security_audit_gate.py",
+    "line": 272,
+    "markers": [
+      "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+      "AssertionError: assert 1 == 0"
+    ]
+  },
+  {
+    "case_id": "DEV-OTEL-EXPIRY-DAY",
+    "selector": "tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]",
+    "classname": "tests.unit.scripts.test_security_audit_gate",
+    "name": "test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]",
+    "file": "tests/unit/scripts/test_security_audit_gate.py",
+    "line": 272,
+    "markers": [
+      "assert gate_mod.main([\"--exceptions\", str(exceptions)]) == scenario.expected",
+      "AssertionError: assert 1 == 0"
+    ]
+  },
+  {
+    "case_id": "DEV-FLOOR-GITPYTHON",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[gitpython-floor]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_public_declarations_require_reviewed_security_floor[gitpython-floor]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 75,
+    "markers": [
+      "assert requirement in project[\"project\"][\"dependencies\"]",
+      "gitpython>=3.2.1"
+    ]
+  },
+  {
+    "case_id": "DEV-FLOOR-PYCPARSER",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[pycparser-floor]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_public_declarations_require_reviewed_security_floor[pycparser-floor]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 75,
+    "markers": [
+      "assert requirement in project[\"project\"][\"dependencies\"]",
+      "pycparser>=3.12,!=3.0.*"
+    ]
+  },
+  {
+    "case_id": "DEV-ADVISORY-SELECTION",
+    "selector": "tests/unit/scripts/test_dependency_compatibility_workflow.py::test_resolver_selection_excludes_only_frozen_release_cases",
+    "classname": "tests.unit.scripts.test_dependency_compatibility_workflow",
+    "name": "test_resolver_selection_excludes_only_frozen_release_cases",
+    "file": "tests/unit/scripts/test_dependency_compatibility_workflow.py",
+    "line": 97,
+    "markers": [
+      "assert len(deselections) == len(FROZEN_RELEASE_SELECTORS) + 2",
+      "AssertionError: assert 2 == (7 + 2)"
+    ]
+  },
+  {
+    "case_id": "DEV-EXACT-RESIDUAL-RISK",
+    "selector": "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+    "classname": "tests.unit.security.test_release_promotion_security_gates",
+    "name": "test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception",
+    "file": "tests/unit/security/test_release_promotion_security_gates.py",
+    "line": 400,
+    "markers": [
+      "assert set(re.findall(r\"^(?:semgrep|mcp)==[^\\s]+\", locked, re.MULTILINE)) == {\"semgrep==1.182.1\", \"mcp==1.29.0\"}",
+      "semgrep==1.179.0",
+      "semgrep==1.182.1"
+    ]
+  },
+  {
+    "case_id": "DEV-PYLINT-FIXED",
+    "selector": "tests/unit/security/test_code_review_dependency_security.py::test_code_review_pins_fixed_pylint_with_bound_artifact_hashes",
+    "classname": "tests.unit.security.test_code_review_dependency_security",
+    "name": "test_code_review_pins_fixed_pylint_with_bound_artifact_hashes",
+    "file": "tests/unit/security/test_code_review_dependency_security.py",
+    "line": 12,
+    "markers": [
+      "assert \"pylint==4.0.9\" in input_bytes.decode(\"utf-8\")",
+      "pylint==4.0.7"
+    ]
+  },
+  {
+    "case_id": "DEV-GIT-CREATE-ABSOLUTE-METADATA",
+    "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[absolute-metadata]",
+    "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+    "name": "test_submodule_creation_validates_checkout_before_clone[absolute-metadata]",
+    "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+    "line": 166,
+    "markers": [
+      "assert result == {",
+      "{'clone_calls': 1} != {'clone_calls': 0}",
+      "{'boundary_reached': True} != {'boundary_reached': False}",
+      "{'rejected': False} != {'rejected': True}"
+    ]
+  },
+  {
+    "case_id": "DEV-GIT-CREATE-GIT-METADATA",
+    "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-metadata]",
+    "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+    "name": "test_submodule_creation_validates_checkout_before_clone[git-metadata]",
+    "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+    "line": 166,
+    "markers": [
+      "assert result == {",
+      "{'clone_calls': 1} != {'clone_calls': 0}",
+      "{'boundary_reached': True} != {'boundary_reached': False}",
+      "{'rejected': False} != {'rejected': True}"
+    ]
+  },
+  {
+    "case_id": "DEV-GIT-CREATE-GIT-SHORT-NAME",
+    "selector": "tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-short-name]",
+    "classname": "tests.unit.security.test_frozen_gitpython_compatibility",
+    "name": "test_submodule_creation_validates_checkout_before_clone[git-short-name]",
+    "file": "tests/unit/security/test_frozen_gitpython_compatibility.py",
+    "line": 166,
+    "markers": [
+      "assert result == {",
+      "{'clone_calls': 1} != {'clone_calls': 0}",
+      "{'boundary_reached': True} != {'boundary_reached': False}",
+      "{'rejected': False} != {'rejected': True}"
+    ]
+  },
+  {
+    "case_id": "DEV-PARSER-EXACT-REVIEW",
+    "selector": "tests/unit/scripts/test_dependency_trust_review.py::test_pycparser_has_current_exact_version_review_record",
+    "classname": "tests.unit.scripts.test_dependency_trust_review",
+    "name": "test_pycparser_has_current_exact_version_review_record",
+    "file": "tests/unit/scripts/test_dependency_trust_review.py",
+    "line": 49,
+    "markers": [
+      "assert pycparser[\"version\"] == \"3.12\"",
+      "assert '2.22' == '3.12'"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-FILELOCK",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[filelock-4.2.1]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[filelock-4.2.1]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('3.32.0', {'registry': 'https://pypi.org/simple'}) != ('4.2.1',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-GITPYTHON",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('3.2.0', {'registry': 'https://pypi.org/simple'}) != ('3.2.1',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-MSGPACK",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[msgpack-1.2.3]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[msgpack-1.2.3]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('1.2.1', {'registry': 'https://pypi.org/simple'}) != ('1.2.3',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-PACKAGING",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('26.2', {'registry': 'https://pypi.org/simple'}) != ('26.3',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-PYCPARSER",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('2.22', {'registry': 'https://pypi.org/simple'}) != ('3.12',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-PYTHON-DISCOVERY",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('1.6.0', {'registry': 'https://pypi.org/simple'}) != ('1.6.1',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-SEMGREP",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[semgrep-1.182.1]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[semgrep-1.182.1]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('1.179.0', {'registry': 'https://pypi.org/simple'}) != ('1.182.1',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-SETUPTOOLS",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[setuptools-84.1.0]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[setuptools-84.1.0]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('84.0.0', {'registry': 'https://pypi.org/simple'}) != ('84.1.0',"
+    ]
+  },
+  {
+    "case_id": "DEV-PIN-VIRTUALENV",
+    "selector": "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.13]",
+    "classname": "tests.unit.security.test_release_dependency_selection",
+    "name": "test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.13]",
+    "file": "tests/unit/security/test_release_dependency_selection.py",
+    "line": 35,
+    "markers": [
+      "assert [(package[\"version\"], package[\"source\"]) for package in packages] == [",
+      "('21.11.0', {'registry': 'https://pypi.org/simple'}) != ('21.14.13',"
+    ]
+  }
+]
