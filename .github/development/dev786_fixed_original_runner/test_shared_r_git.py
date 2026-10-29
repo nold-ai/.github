@@ -51,7 +51,7 @@ class SharedGit(unittest.TestCase):
             expected = {os.fsdecode(k): os.fsdecode(v)
                         for k, v in candidate._original_vectors(tool, prepared)[0].environment}
             self.assertEqual(set(expected), {'HOME', 'TMPDIR', 'PATH', 'LC_ALL', 'VIRTUAL_ENV',
-                                             'SPECFACT_MODULES_REPO', 'SPECFACT_MODULES_ROOTS'})
+                                             'SPECFACT_MODULES_REPO', 'SPECFACT_MODULES_ROOTS', 'GIT_CONFIG_NOSYSTEM'})
             for _, argv, kwargs, observation in self.fixture.launches[first:]:
                 self.assertEqual({os.fsdecode(k): os.fsdecode(v) for k, v in kwargs['env'].items()}, expected)
                 self.assertIs(observation[0], timer)
@@ -72,7 +72,7 @@ class SharedGit(unittest.TestCase):
         self.assertTrue(preparation.complete)
         self.assertTrue(self.account.stopped)
 
-    def test_live_system_config_refused(self):
+    def test_live_system_config_is_excluded(self):
         prepared, tool = self.prepare()
         first = len(self.fixture.launches)
         command_start = len(self.account.preparation.commands)
@@ -81,10 +81,9 @@ class SharedGit(unittest.TestCase):
         expected = {os.fsdecode(k): os.fsdecode(v)
                     for k, v in candidate._original_vectors(tool, prepared)[0].environment}
         self.assertEqual(set(expected), {'HOME', 'TMPDIR', 'PATH', 'LC_ALL', 'VIRTUAL_ENV',
-                                         'SPECFACT_MODULES_REPO', 'SPECFACT_MODULES_ROOTS'})
+                                         'SPECFACT_MODULES_REPO', 'SPECFACT_MODULES_ROOTS', 'GIT_CONFIG_NOSYSTEM'})
         with candidate.Timer(1200) as timer:
-            with self.assertRaises(candidate._OriginalProofError):
-                candidate._verify_original_r_live(self.account, prepared, tool, timer)
+            candidate._verify_original_r_live(self.account, prepared, tool, timer)
         launches = self.fixture.launches[first:]
         self.assertEqual(sum(command == argv for _, command, _, _ in launches), 1)
         for _, _, kwargs, observation in launches:
@@ -95,12 +94,13 @@ class SharedGit(unittest.TestCase):
         self.assertEqual(len(records), 1)
         record = records[0]
         self.assertEqual((record.reason, record.wait_status), ('complete', 0))
-        self.assertIn(b'system\0file:/etc/gitconfig\0alias.shared-test\nstatus\0', record.stdout)
+        self.assertNotIn(b'system\0', record.stdout)
+        self.assertEqual(len(record.stdout.split(b'\0')), 13)
+        self.assertEqual(expected['GIT_CONFIG_NOSYSTEM'], '1')
         self.assertEqual(record.stderr, b'')
         self.assertTrue(record.cleanup_complete)
-        print('system-config-observation', repr(record.stdout), flush=True)
         self.assertTrue(self.account.preparation.complete)
-        self.assertTrue(self.account.stopped)
+        self.assertFalse(self.account.stopped)
 
     def test_live_effective_home_config_refused(self):
         prepared, tool = self.prepare()
@@ -112,7 +112,7 @@ class SharedGit(unittest.TestCase):
         launches = self.fixture.launches[first:]
         self.assertTrue(any('config' in argv for _, argv, _, _ in launches))
         for _, _, kwargs, _ in launches:
-            self.assertNotIn('GIT_CONFIG_NOSYSTEM', {os.fsdecode(k) for k in kwargs['env']})
+            self.assertEqual({os.fsdecode(k): os.fsdecode(v) for k, v in kwargs['env'].items()}['GIT_CONFIG_NOSYSTEM'], '1')
         self.assertTrue(self.account.stopped)
         self.assertTrue(self.account.preparation.complete)
 

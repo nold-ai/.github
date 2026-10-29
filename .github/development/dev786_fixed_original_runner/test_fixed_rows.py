@@ -69,7 +69,7 @@ def expected(tool, paths):
     )
     env = ((b'HOME', home), (b'TMPDIR', tmp), (b'PATH', os.fsencode(tool.uv.parent) + b':/usr/bin:/bin'),
            (b'LC_ALL', b'C.UTF-8'), (b'VIRTUAL_ENV', os.fsencode(tool.python.parent.parent)),
-           (b'SPECFACT_MODULES_REPO', modules), (b'SPECFACT_MODULES_ROOTS', modules + b'/packages'))
+           (b'SPECFACT_MODULES_REPO', modules), (b'SPECFACT_MODULES_ROOTS', modules + b'/packages'), (b'GIT_CONFIG_NOSYSTEM', b'1'))
     return tuple(runner._OriginalVector(stage, args, env, root, code, seconds)
                  for stage, args, code, seconds in zip(runner._OriginalStage, argv, (0, 1, 0, 0), (120, 660, 120, 120)))
 
