@@ -33,7 +33,7 @@ def failed_live_export(test, retained=None, exhausted=False):
             account.retained_bytes = retained
         before = account.retained_bytes
         if exhausted:
-            account.spent_bytes = 255 * 1024 * 1024 - 65536
+            account.spent_bytes = 511 * 1024 * 1024 - 65536
         real_open, real_write, real_close = os.open, os.write, os.close
         real_base64 = TARGET.base64.b64encode
         identity_fds, identity_opens, identity_writes = set(), [], []

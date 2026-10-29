@@ -130,15 +130,37 @@ class OwnedReadTests(unittest.TestCase):
         self.assertEqual(result.data, self.payload)
         self.assertEqual(result.sha256, hashlib.sha256(self.payload).hexdigest())
         self.assertEqual(self.account.metadata_visits, 20000 + 2 * (len(self.root.parts) - 1) + 6)
-        self.assertLessEqual(self.account.metadata_visits, 64000)
+        self.assertLessEqual(self.account.metadata_visits, 128000)
         self.assertEqual(self.account.spent_bytes, 4 * len(self.payload))
         self.assertEqual(self.account.read_bytes, len(self.payload))
         self.assertEqual(self.reads, [self.payload])
         self.assertFalse(self.account.stopped)
         self.assert_closed()
 
-    def test_payload_admission_below_at_above(self):
+    def test_raw_read_budget_is_independent_from_larger_work_budget(self):
         bound = 255 * 1024 * 1024
+        for spare in (-1, 0, 1):
+            with self.subTest(spare=spare):
+                self.account = self.subject._AttemptAccount(
+                    self.binding, time.monotonic_ns() + 60_000_000_000, (),
+                    spent_bytes=510 * 1024 * 1024,
+                    read_bytes=bound - len(self.payload) - 1 - spare)
+                self.opens.clear()
+                self.reads.clear()
+                with patch.object(self.subject.os, 'open', self.recording_open):
+                    with patch.object(self.subject.os, 'read', self.recording_read):
+                        if spare < 0:
+                            with self.assertRaises(self.subject._OwnedReadError):
+                                self.read()
+                        else:
+                            self.assertEqual(self.read().data, self.payload)
+                self.assertLessEqual(self.account.read_bytes, bound)
+                if spare < 0:
+                    self.assertEqual(self.opens, [])
+                    self.assertEqual(self.reads, [])
+
+    def test_payload_admission_below_at_above(self):
+        bound = 511 * 1024 * 1024
         admission = 4 * (len(self.payload) + 1)
         for spare in (-1, 0, 1):
             with self.subTest(spare=spare):
@@ -175,13 +197,13 @@ class OwnedReadTests(unittest.TestCase):
         self.assertEqual(self.account.retained_members, 1)
         self.assert_closed()
         self.account = self.subject._AttemptAccount(
-            self.binding, time.monotonic_ns() + 60_000_000_000, (), spent_bytes=255 * 1024 * 1024 - 3)
+            self.binding, time.monotonic_ns() + 60_000_000_000, (), spent_bytes=511 * 1024 * 1024 - 3)
         self.opens.clear()
         with patch.object(self.subject.os, 'open', self.recording_open):
             with self.assertRaises(self.subject._OwnedReadError):
                 self.read()
         self.assertEqual(self.opens, [])
-        self.assert_stopped(255 * 1024 * 1024 - 3)
+        self.assert_stopped(511 * 1024 * 1024 - 3)
 
     def test_category_and_member_denial_precedes_open(self):
         for field, value in [('retained_bytes', 16 * 1024 * 1024 - len(self.payload) + 1),
@@ -199,8 +221,8 @@ class OwnedReadTests(unittest.TestCase):
                 self.assertTrue(self.account.stopped)
 
     def test_metadata_and_clock_denial_have_no_io(self):
-        near_reservation = 64000 - (2 * (len(self.root.parts) - 1) + 6) + 1
-        for field, value in [('metadata_visits', 64000), ('metadata_visits', 64001),
+        near_reservation = 128000 - (2 * (len(self.root.parts) - 1) + 6) + 1
+        for field, value in [('metadata_visits', 128000), ('metadata_visits', 128001),
                              ('metadata_visits', near_reservation), ('deadline_ns', 1)]:
             with self.subTest(field=field):
                 self.account = self.subject._AttemptAccount(

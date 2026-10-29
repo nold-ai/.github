@@ -771,10 +771,10 @@ class FixedRows(unittest.TestCase):
         self.invoke_linux(lambda setup, patches: test_exhausted_shared_allowance_refuses_without_launch(setup, patches, 'stream_bytes', 16 * 1024 * 1024))
 
     def test_exhausted_shared_allowance_refuses_without_launch_1(self):
-        self.invoke_linux(lambda setup, patches: test_exhausted_shared_allowance_refuses_without_launch(setup, patches, 'spent_bytes', 255 * 1024 * 1024))
+        self.invoke_linux(lambda setup, patches: test_exhausted_shared_allowance_refuses_without_launch(setup, patches, 'spent_bytes', 511 * 1024 * 1024))
 
     def test_exhausted_shared_allowance_refuses_without_launch_2(self):
-        self.invoke_linux(lambda setup, patches: test_exhausted_shared_allowance_refuses_without_launch(setup, patches, 'metadata_visits', 64000))
+        self.invoke_linux(lambda setup, patches: test_exhausted_shared_allowance_refuses_without_launch(setup, patches, 'metadata_visits', 128000))
 
     def test_nondefault_sigchld_refuses_before_child_creation(self):
         self.invoke_linux(lambda setup, patches: test_nondefault_sigchld_refuses_before_child_creation(setup, patches))

@@ -20,7 +20,7 @@ class FailedPreparationExport(unittest.TestCase):
     def test_cleanup_refusal_is_retained_in_incomplete_footer(self):
         with fixtures.owned_account() as account:
             children = fixtures.registered_children(account)
-            account.metadata_visits = 64000
+            account.metadata_visits = 128000
             result = target._finish_original15(account, fixtures.failed_original(), fixtures.not_published())
             self.assertFalse(result.complete)
             self.assertTrue(all(not row.deleted for row in result.cleanup))
@@ -50,7 +50,7 @@ class FailedPreparationExport(unittest.TestCase):
             account.preparation.commands = (earlier, command)
             account.preparation.metadata_bytes = len(earlier.stdout) + len(command.receipt) + len(command.stdout)
             account.live_entered, account.stopped = True, True
-            account.spent_bytes = 255 * target.MIB - 65536
+            account.spent_bytes = 511 * target.MIB - 65536
             primary = RuntimeError('Synthetic config refusal')
             account.primary_error = primary
             result = target._finish_original15(account, fixtures.failed_original(primary), fixtures.published(True))
@@ -66,7 +66,7 @@ class FailedPreparationExport(unittest.TestCase):
                              [[command.receipt, command.stdout, command.stderr]])
             footer = json.loads((account.export_path / 'closure.json').read_bytes())
             self.assertIn(['preparation-commands.json', len(raw), hashlib.sha256(raw).hexdigest()], footer['files'])
-            self.assertLessEqual(account.spent_bytes, 256 * target.MIB)
+            self.assertLessEqual(account.spent_bytes, 512 * target.MIB)
 
     def test_sensitive_command_is_withheld_before_encoding(self):
         with fixtures.owned_account() as account:
