@@ -1037,7 +1037,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-25',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-26',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -1406,7 +1406,8 @@ def _original_vectors(tool, prepared: _PreparedPaths) -> tuple[_OriginalVector, 
                    (b'LC_ALL', b'C.UTF-8'),
                    (b'VIRTUAL_ENV', os.fsencode(tool.python.parent.parent)),
                    (b'SPECFACT_MODULES_REPO', modules),
-                   (b'SPECFACT_MODULES_ROOTS', modules + b'/packages'))
+                   (b'SPECFACT_MODULES_ROOTS', modules + b'/packages'),
+                   (b'GIT_CONFIG_NOSYSTEM', b'1'))
     common = (py, b'-I', b'-S', b'-c')
     cli = common + (
         b'import sys; site_packages, trusted_core = sys.argv[1:3]; del sys.argv[1:3]; sys.path.append(site_packages); sys.path.insert(0, trusted_core); from specfact_cli.cli import cli_main; cli_main()',
@@ -2717,7 +2718,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         paths = _PreparedPaths(root, account.root.path, preparation.home.path, preparation.tmp.path)
         vectors = _original_vectors(tool, paths)
         _original_r_require(len(vectors) == 4 and tuple(v.stage for v in vectors) == tuple(_OriginalStage)
-                            and len(vectors[0].environment) == 7
+                            and len(vectors[0].environment) == 8
                             and all(v.environment == vectors[0].environment for v in vectors))
         environment = {os.fsdecode(key): os.fsdecode(value) for key, value in vectors[0].environment}
 
@@ -3973,6 +3974,7 @@ def _capture_original_subjects(account, prepared):
 def _finish_original15(account, original, published):
     _proof_require(type(account) is _AttemptAccount and not account.finish_started)
     account.finish_started = True
+    work_at_entry = account.spent_bytes
     diagnostics, cleanup = [], []
     export_fd = footer_fd = None
     footer_started = False
@@ -4309,6 +4311,7 @@ def _finish_original15(account, original, published):
                 _proof_require(account.read_bytes + account.old_join.collector_plus_export_read_bytes <= 768 * MIB)
             value = {'complete': complete, 'outcome': 'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete',
                      'cleanup': [asdict(item) for item in cleanup], 'diagnostics': diagnostics, 'files': files,
+                     'work_at_finalization_entry': work_at_entry,
                      'new_read_bytes': account.read_bytes, 'new_work_bytes': account.spent_bytes}
             raw = footer(value)
             _proof_require(os.fstat(export_fd).st_ino == export_identity.st_ino
