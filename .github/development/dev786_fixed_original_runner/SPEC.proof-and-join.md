@@ -146,3 +146,8 @@ The existing cumulative work allowance is 512 MiB total, with 511 MiB normal and
 ## Retain the first refusal after cleanup
 
 The existing closure must retain bounded exception_facts(account.primary_error), including a finalization refusal, after scratch deletion. Preserve first-error precedence and omit arbitrary exception messages. The existing closure byte/work/secret/time bounds and all incomplete/successful cleanup decisions remain enforced. This observability repair does not make any refused packet complete.
+
+
+## Preserve separate input and report accounting
+
+The serialized identity.json copy belongs only to the existing 16 MiB reports category. Keep the independent aggregate preparation and restoration input metadata guard at 8 MiB minus the existing 64 KiB closure reserve. Do not debit the output identity copy into input metadata. Preserve all serialization, work, read, retention, export, cleanup and time charges. Regression controls cover legitimate 4 MiB raw input, input metadata immediately below, at and above its unchanged boundary, and the existing report-category boundary.
