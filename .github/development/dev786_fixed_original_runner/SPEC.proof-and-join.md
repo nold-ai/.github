@@ -141,3 +141,8 @@ An incomplete footer records failed cleanup attempts as failures. Requiring succ
 ## Owner-approved verifier capacity correction, 29 October 2026
 
 The existing cumulative work allowance is 512 MiB total, with 511 MiB normal and the same 1 MiB closure reserve. Metadata visits are capped at 128000. Raw reads retain their independent 255 MiB ceiling. Admit each account-owned read maximum before I/O; failed reads with unknown results conservatively consume that admitted maximum. No reset, refund, extra account, general reader API, privilege, time/source/storage/category cap increase or successful-cleanup waiver is allowed. The original scenario identities and assertions remain required. This fixes observed capacity exhaustion and does not guarantee the complete execution fits.
+
+
+## Retain the first refusal after cleanup
+
+The existing closure must retain bounded exception_facts(account.primary_error), including a finalization refusal, after scratch deletion. Preserve first-error precedence and omit arbitrary exception messages. The existing closure byte/work/secret/time bounds and all incomplete/successful cleanup decisions remain enforced. This observability repair does not make any refused packet complete.
