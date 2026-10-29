@@ -1040,7 +1040,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-28',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-29',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -4417,6 +4417,7 @@ def _finish_original15(account, original, published):
                 _proof_require(account.read_bytes + account.old_join.collector_plus_export_read_bytes <= 768 * MIB)
             value = {'complete': complete, 'outcome': 'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete',
                      'cleanup': [asdict(item) for item in cleanup], 'diagnostics': diagnostics, 'files': files,
+                     'exception': exception_facts(account.primary_error),
                      'work_at_finalization_entry': work_at_entry,
                      'new_metadata_visits': account.metadata_visits,
                      'new_read_bytes': account.read_bytes, 'new_work_bytes': account.spent_bytes}
