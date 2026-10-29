@@ -2065,6 +2065,8 @@ class _SourceRole(Enum):
     SOURCE_30 = 'source-30'
     SOURCE_31 = 'source-31'
     SOURCE_32 = 'source-32'
+    SOURCE_33 = 'source-33'
+    SOURCE_34 = 'source-34'
     SUBJECT_0_REQUIREMENT = 'subject-0-requirement'
     SUBJECT_0_GITPYTHON = 'subject-0-gitpython'
     SUBJECT_0_GITDB = 'subject-0-gitdb'
@@ -2098,12 +2100,12 @@ _FIXED_SOURCES = (
     ('P', '.github/native-tools/dev786/runtime.json', '7d8c44bbac4faeca5fdfb34bca673d12691022c17bfc42912ed8c8785525882f'),
     ('R', 'tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
     ('R', 'tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
-    ('R', 'tests/unit/scripts/test_security_audit_gate.py', '5100ceaa78a4381b8565f5a3c996e8d8b15ceda44d18de9ebcf04eb0561f81a3'),
+    ('R', 'tests/unit/scripts/test_security_audit_gate.py', 'd7540a8a7e47b66880fea77f19acdc3cb29cd0e7a37b786b180cf3ca67813e0a'),
     ('R', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 'c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af'),
-    ('R', 'tests/unit/security/test_release_dependency_selection.py', 'f713acdfeba8235bd5f7e2c22b7a29585d61693798972b6e9a24a31423e7a4e6'),
+    ('R', 'tests/unit/security/test_release_dependency_selection.py', 'aa8ae11968ef7e026599e57e0f47522717726fb8477de62c32ad5944d62684b5'),
     ('R', 'scripts/requirements_proof_pytest_plugin.py', '31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8'),
-    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', '6a1f812cc9a0be0adf260cdfb48dda0a5af3c41b5827259459373123861e9e20'),
-    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', 'a5664876536b22616c93489ceb4baacd9ba07515f83216e2441289aaf3606707'),
+    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', 'eecbefc8d5764606b943e53dbd784f813f3999ad1ce8c3a1b40af763d3298212'),
+    ('R', 'openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', '7e29d9b17fbbe440e02a8ee599b694d9bc52ab7d7cdbcf43c137879284e830ab'),
     ('R', 'requirements/ci/locked.txt', '0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266'),
     ('R', 'uv.lock', '850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7'),
     ('C', 'src/specfact_cli/cli.py', '191b16df14c9875a4f265ed5a6c86f3d3e9888780930cb0ab7b944f7865cac00'),
@@ -2119,24 +2121,32 @@ _FIXED_SOURCES = (
     ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/commands.py', '65350ba69469798ccfd07587e979c3ca1b9c61382dd42ae27f7a02cbe4ba96db'),
     ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/evidence.py', 'f5a34c6fa21d6d1c6428d54da1a9b6ce61bee6d2c2d8d190a8751a7eca25bc3e'),
     ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/lifecycle.py', '9352b1acde9f520e577657b5812e9b129a8b018ddd76113684b829e7b395d654'),
+    ('R', 'tests/unit/security/test_code_review_dependency_security.py', 'ffc5a4e3f9f1b2b5574a970ab8e5673a68b647f865e620224f788fa5e773b59e'),
+    ('R', 'tests/unit/security/test_release_promotion_security_gates.py', '32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093'),
 )
 
 _FIXED_CASES = (
     ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[exact-cve]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
     ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[exact-ghsa]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
     ('tests/unit/scripts/test_security_audit_gate.py::test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]', 'tests.unit.scripts.test_security_audit_gate', 'test_committed_otel_exception_is_exact_and_time_bounded[expiry-day]', 'tests/unit/scripts/test_security_audit_gate.py', 272, ('assert gate_mod.main(["--exceptions", str(exceptions)]) == scenario.expected', 'AssertionError: assert 1 == 0')),
-    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests/unit/security/test_release_dependency_selection.py', 61, ('assert requirement in project["project"]["dependencies"]', 'gitpython>=3.2.1')),
-    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests/unit/security/test_release_dependency_selection.py', 61, ('assert requirement in project["project"]["dependencies"]', 'pycparser>=3.12,!=3.0.*')),
+    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[gitpython-floor]', 'tests/unit/security/test_release_dependency_selection.py', 75, ('assert requirement in project["project"]["dependencies"]', 'gitpython>=3.2.1')),
+    ('tests/unit/security/test_release_dependency_selection.py::test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests.unit.security.test_release_dependency_selection', 'test_public_declarations_require_reviewed_security_floor[pycparser-floor]', 'tests/unit/security/test_release_dependency_selection.py', 75, ('assert requirement in project["project"]["dependencies"]', 'pycparser>=3.12,!=3.0.*')),
     ('tests/unit/scripts/test_dependency_compatibility_workflow.py::test_resolver_selection_excludes_only_frozen_release_cases', 'tests.unit.scripts.test_dependency_compatibility_workflow', 'test_resolver_selection_excludes_only_frozen_release_cases', 'tests/unit/scripts/test_dependency_compatibility_workflow.py', 97, ('assert len(deselections) == len(FROZEN_RELEASE_SELECTORS) + 2', 'AssertionError: assert 2 == (7 + 2)')),
+    ('tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception', 'tests.unit.security.test_release_promotion_security_gates', 'test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception', 'tests/unit/security/test_release_promotion_security_gates.py', 400, ('assert set(re.findall(r"^(?:semgrep|mcp)==[^\\s]+", locked, re.MULTILINE)) == {"semgrep==1.182.1", "mcp==1.29.0"}', 'semgrep==1.179.0', 'semgrep==1.182.1')),
+    ('tests/unit/security/test_code_review_dependency_security.py::test_code_review_pins_fixed_pylint_with_bound_artifact_hashes', 'tests.unit.security.test_code_review_dependency_security', 'test_code_review_pins_fixed_pylint_with_bound_artifact_hashes', 'tests/unit/security/test_code_review_dependency_security.py', 12, ('assert "pylint==4.0.9" in input_bytes.decode("utf-8")', 'pylint==4.0.7')),
     ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[absolute-metadata]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[absolute-metadata]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
     ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-metadata]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[git-metadata]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
     ('tests/unit/security/test_frozen_gitpython_compatibility.py::test_submodule_creation_validates_checkout_before_clone[git-short-name]', 'tests.unit.security.test_frozen_gitpython_compatibility', 'test_submodule_creation_validates_checkout_before_clone[git-short-name]', 'tests/unit/security/test_frozen_gitpython_compatibility.py', 166, ('assert result == {', "{'clone_calls': 1} != {'clone_calls': 0}", "{'boundary_reached': True} != {'boundary_reached': False}", "{'rejected': False} != {'rejected': True}")),
     ('tests/unit/scripts/test_dependency_trust_review.py::test_pycparser_has_current_exact_version_review_record', 'tests.unit.scripts.test_dependency_trust_review', 'test_pycparser_has_current_exact_version_review_record', 'tests/unit/scripts/test_dependency_trust_review.py', 49, ('assert pycparser["version"] == "3.12"', "assert '2.22' == '3.12'")),
-    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '3.2.0' == '3.2.1'")),
-    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '26.2' == '26.3'")),
-    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '2.22' == '3.12'")),
-    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '1.6.0' == '1.6.1'")),
-    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.12]', 'tests/unit/security/test_release_dependency_selection.py', 32, ('assert packages[0]["version"] == version', "assert '21.11.0' == '21.14.12'")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[filelock-4.2.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[filelock-4.2.1]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('3.32.0', {'registry': 'https://pypi.org/simple'}) != ('4.2.1',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[gitpython-3.2.1]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('3.2.0', {'registry': 'https://pypi.org/simple'}) != ('3.2.1',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[msgpack-1.2.3]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[msgpack-1.2.3]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('1.2.1', {'registry': 'https://pypi.org/simple'}) != ('1.2.3',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[packaging-26.3]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('26.2', {'registry': 'https://pypi.org/simple'}) != ('26.3',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[pycparser-3.12]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('2.22', {'registry': 'https://pypi.org/simple'}) != ('3.12',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[python-discovery-1.6.1]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('1.6.0', {'registry': 'https://pypi.org/simple'}) != ('1.6.1',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[semgrep-1.182.1]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[semgrep-1.182.1]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('1.179.0', {'registry': 'https://pypi.org/simple'}) != ('1.182.1',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[setuptools-84.1.0]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[setuptools-84.1.0]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('84.0.0', {'registry': 'https://pypi.org/simple'}) != ('84.1.0',")),
+    ('tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.13]', 'tests.unit.security.test_release_dependency_selection', 'test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.13]', 'tests/unit/security/test_release_dependency_selection.py', 35, ('assert [(package["version"], package["source"]) for package in packages] == [', "('21.11.0', {'registry': 'https://pypi.org/simple'}) != ('21.14.13',")),
 )
 
 
@@ -2538,14 +2548,16 @@ _ORIGINAL_R_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913
 _ORIGINAL_R_SOURCES = (
     ('tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
     ('tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
-    ('tests/unit/scripts/test_security_audit_gate.py', '5100ceaa78a4381b8565f5a3c996e8d8b15ceda44d18de9ebcf04eb0561f81a3'),
+    ('tests/unit/scripts/test_security_audit_gate.py', 'd7540a8a7e47b66880fea77f19acdc3cb29cd0e7a37b786b180cf3ca67813e0a'),
     ('tests/unit/security/test_frozen_gitpython_compatibility.py', 'c1d428aba630c5f4abd4f236c10540632fb86e9c0e93ea1a9ba91809dbe415af'),
-    ('tests/unit/security/test_release_dependency_selection.py', 'f713acdfeba8235bd5f7e2c22b7a29585d61693798972b6e9a24a31423e7a4e6'),
+    ('tests/unit/security/test_release_dependency_selection.py', 'aa8ae11968ef7e026599e57e0f47522717726fb8477de62c32ad5944d62684b5'),
     ('scripts/requirements_proof_pytest_plugin.py', '31a1a8e3f7cf4e9d35612e4395c03298be85262da2bcc91b33008919f2a24de8'),
-    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', '6a1f812cc9a0be0adf260cdfb48dda0a5af3c41b5827259459373123861e9e20'),
-    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', 'a5664876536b22616c93489ceb4baacd9ba07515f83216e2441289aaf3606707'),
+    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-evidence.yaml', 'eecbefc8d5764606b943e53dbd784f813f3999ad1ce8c3a1b40af763d3298212'),
+    ('openspec/changes/security-dependencies-0-55-11-dev/requirements-proof/review-evidence.json', '7e29d9b17fbbe440e02a8ee599b694d9bc52ab7d7cdbcf43c137879284e830ab'),
     ('requirements/ci/locked.txt', '0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266'),
     ('uv.lock', '850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7'),
+    ('tests/unit/security/test_code_review_dependency_security.py', 'ffc5a4e3f9f1b2b5574a970ab8e5673a68b647f865e620224f788fa5e773b59e'),
+    ('tests/unit/security/test_release_promotion_security_gates.py', '32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093'),
 )
 
 
@@ -3596,10 +3608,10 @@ def _junit_original15(account, member):
                 _proof_require(parent == 'testsuites' and not suite_seen
                                and attrs.get('name') == 'pytest'
                                and all(attrs.get(k) == v for k, v in
-                                       (('tests', '15'), ('failures', '15'), ('errors', '0'), ('skipped', '0'))))
+                                       (('tests', '21'), ('failures', '21'), ('errors', '0'), ('skipped', '0'))))
                 suite_seen = True
             elif name == 'testcase':
-                _proof_require(parent == 'testsuite' and current is None and len(cases) < 15)
+                _proof_require(parent == 'testsuite' and current is None and len(cases) < 21)
                 current = {'attrs': attrs, 'properties': {}, 'failure': [], 'message': None, 'groups': 0}
             elif name == 'properties':
                 _proof_require(parent == 'testcase' and current['groups'] == 0)
@@ -3635,7 +3647,7 @@ def _junit_original15(account, member):
         parser.ExternalEntityRefHandler = forbidden
         parser.ProcessingInstructionHandler = forbidden
         parser.Parse(member.data, True)
-        _proof_require(root_seen and suite_seen and not stack and len(cases) == 15)
+        _proof_require(root_seen and suite_seen and not stack and len(cases) == 21)
         for case, expected_case in zip(cases, _FIXED_CASES):
             selector, classname, name, source, line, markers = expected_case
             _proof_require(case['attrs'].get('classname') == classname and case['attrs'].get('name') == name
@@ -3647,11 +3659,12 @@ def _junit_original15(account, member):
             _proof_require(lines and lines[-1] == f'{source}:{line}: AssertionError'
                            and 'AssertionError' in body and all(marker in body for marker in markers))
         _owned_clock(account)
-        return _Junit15Facts(tuple(case[0] for case in _FIXED_CASES), 15, 0, 0, 0,
+        return _Junit15Facts(tuple(case[0] for case in _FIXED_CASES), 21, 0, 0, 0,
                              (('runner', 'pytest'), ('python', '3.12.15'), ('pytest', '9.1.1')))
     except BaseException as error:
         _proof_failed(account, error)
         raise _OriginalProofError('Fixed original15 XML refused') from None
+
 
 
 def _check_products(account, stage):
@@ -3666,8 +3679,8 @@ def _check_products(account, stage):
             _proof_require(products.plan is None and products.planning_report is None)
             plan = _read_owned(account, _SourceRole.PLAN)
             report = _read_owned(account, _SourceRole.PLANNING_REPORT)
-            _proof_require(plan.sha256 == '8d24130f0cb8bfb70bd9f6d157b646cad15a210af3b93609b64582bf11d53900'
-                           and report.sha256 == '7da297b8feb57bb9b813f6b5336d9bfa0d8a3303e7dcb61b8613619ead4d4fbb')
+            _proof_require(plan.sha256 == '83e229add4081858e5ec708ab4ff35c7d9d5db03e65de2eb8a0a8a064fa8d31b'
+                           and report.sha256 == 'c3de795387a8b289ebf1d8a0b976c25102f5563b7b94a60423cfaccd0c291607')
             parsed(plan)
             parsed(report)
             summary = _read_owned(account, _SourceRole.PLANNING_SUMMARY)
@@ -3685,7 +3698,7 @@ def _check_products(account, stage):
             _proof_require(proof['junit_digest'] == 'sha256:' + products.junit.sha256)
             proof['junit_digest'] = 'sha256:' + '0' * 64
             normalized = encoded(report)
-            _proof_require(sha(normalized) == '245a767e3054d1fbfe0a05c533be971d6adccb309fd330904554831a20a57690')
+            _proof_require(sha(normalized) == '8973cc7481ee0e0627f39e2625a87ce52b94afd3b62859f12d47675bbab12ec0')
             _proof_charge(account, len(member.data))
             _proof_require(account.retained_bytes + len(member.data) <= 16 * MIB)
             _owned_root_check(account)
@@ -3707,7 +3720,7 @@ def _check_products(account, stage):
             member = _read_owned(account, _SourceRole.REPORT)
             bound, original = parsed(member), parsed(products.unbound_report)
             proof = bound['execution_proof']
-            additions = {'source_tree': 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e', 'merge_base': C,
+            additions = {'source_tree': 'fd6a43314d221ee03f6bf476c737487a71aa3677', 'merge_base': C,
                          'test_file_digests': {path: 'sha256:' + digest for label, path, digest in _FIXED_SOURCES
                                                if label == 'R' and path.startswith('tests/')},
                          'toolchain_identity': {'runner': 'pytest', 'python': '3.12.15', 'pytest': '9.1.1'}}
@@ -3718,6 +3731,7 @@ def _check_products(account, stage):
     except BaseException as error:
         _proof_failed(account, error)
         raise _OriginalProofError('Fixed original15 products refused') from None
+
 
 
 def _check_current_boundary(account, api):
@@ -3841,7 +3855,7 @@ def _original15(account, prepared, tool, timer):
                 expected_path = account.policy / '.github/scripts' / (name + '.py')
                 _proof_require(module.__file__ == str(expected_path) and module.__spec__.origin == str(expected_path)
                                and expected_path.resolve(strict=True) == expected_path)
-            return tuple(_read_owned(account, _SourceRole[f'SOURCE_{i:02d}']) for i in range(33))
+            return tuple(_read_owned(account, _SourceRole[f'SOURCE_{i:02d}']) for i in range(35))
         account.source_before = sources()
         def caches():
             records = []
@@ -4012,6 +4026,7 @@ def _original15(account, prepared, tool, timer):
     finally:
         if saved_umask is not None:
             os.umask(saved_umask)
+
 
 
 def _capture_original_subjects(account, prepared):
@@ -4265,8 +4280,8 @@ def _finish_original15(account, original, published):
                     and account.unwound and account.restored and account.phase is _OriginalPhase.UNWOUND
                     and account.boundary_before is not None and account.boundary_after == account.boundary_before
                     and account.old_join is not None and account.old_join.integrity_complete
-                    and len(account.direct_results) == 4 and len(account.source_before) == 33
-                    and len(account.source_after) == 33 and len(account.subjects) == 3)
+                    and len(account.direct_results) == 4 and len(account.source_before) == 35
+                    and len(account.source_after) == 35 and len(account.subjects) == 3)
         if complete:
             _proof_require(account.api is not None
                            and account.api.GitHub._https_get is account.saved_transport
@@ -4443,6 +4458,7 @@ def _finish_original15(account, original, published):
         'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete', tuple(cleanup),
         tuple(diagnostics), account.export_path if footer_started else None)
     return account.final_packet
+
 
 
 if __name__ == '__main__':
