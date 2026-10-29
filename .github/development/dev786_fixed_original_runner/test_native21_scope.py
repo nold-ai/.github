@@ -211,7 +211,7 @@ class Sources(unittest.TestCase):
         for number in (0, 1):
             with self.subTest(number=number), OWNED.owned_account() as account:
                 source, role = self.fixture(account, number)
-                member = accepted(self, TARGET._OriginalProofError,
+                member = accepted(self, TARGET._OwnedReadError,
                                   lambda: TARGET._read_owned(account, role))
                 self.assertEqual(member.data, source.read_bytes())
                 self.assertEqual(member.sha256, digest(data("selected-" + str(number) + ".py")))
@@ -223,9 +223,10 @@ class Sources(unittest.TestCase):
             with self.subTest(number=number), OWNED.owned_account() as account:
                 source, role = self.fixture(account, number)
                 source.write_bytes(source.read_bytes() + b"x")
-                with self.assertRaises(TARGET._OriginalProofError):
+                with self.assertRaises(TARGET._OwnedReadError):
                     TARGET._read_owned(account, role)
                 self.assertTrue(account.stopped)
+
 
 
 class Preparation(unittest.TestCase):
