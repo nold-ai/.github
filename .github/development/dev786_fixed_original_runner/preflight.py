@@ -1037,7 +1037,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-26',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-27',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -3078,6 +3078,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
                                        'ended_ns': record.ended_ns, 'pid': record.pid,
                                        'waitid': record.waitid, 'wait_status': record.wait_status,
                                        'cleanup_complete': record.cleanup_complete, 'reason': record.reason,
+                                       'failure': exception_facts(failure),
                                        'requested_limits': limits,
                                        'stdout_bytes': len(record.stdout), 'stdout_sha256': sha(record.stdout),
                                        'stderr_bytes': len(record.stderr), 'stderr_sha256': sha(record.stderr)})
@@ -4306,12 +4307,14 @@ def _finish_original15(account, original, published):
         try:
             _proof_final_clock(account)
             _proof_require(datetime.now(timezone.utc) < datetime(2026, 11, 4, 23, tzinfo=timezone.utc))
-            _proof_require(footer_started and all(item.deleted and item.descriptor_closed for item in cleanup))
+            _proof_require(footer_started and (not complete or all(
+                item.deleted and item.descriptor_closed for item in cleanup)))
             if account.old_join is not None:
                 _proof_require(account.read_bytes + account.old_join.collector_plus_export_read_bytes <= 768 * MIB)
             value = {'complete': complete, 'outcome': 'CompleteFixedSourcePacketAwaitingRootReview' if complete else 'Incomplete',
                      'cleanup': [asdict(item) for item in cleanup], 'diagnostics': diagnostics, 'files': files,
                      'work_at_finalization_entry': work_at_entry,
+                     'new_metadata_visits': account.metadata_visits,
                      'new_read_bytes': account.read_bytes, 'new_work_bytes': account.spent_bytes}
             raw = footer(value)
             _proof_require(os.fstat(export_fd).st_ino == export_identity.st_ino
