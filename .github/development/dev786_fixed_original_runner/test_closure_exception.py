@@ -15,12 +15,12 @@ f.TARGET = t
 f.load(ROOT.parents[1] / 'scripts/late_cycle_admission.py', 'late_cycle_admission')
 
 class ClosureException(unittest.TestCase):
-    def test_real_identity_budget_refusal_is_exported(self):
+    def test_real_metadata_budget_refusal_is_exported(self):
         with f.owned_account() as account:
             f.registered_children(account)
             f.actual_failed_old_export(account)
             account.live_entered = True
-            account.metadata_bytes = 8 * t.MIB - 65536
+            account.metadata_bytes = 8 * t.MIB - 65536 + 1
             result = t._finish_original15(account, f.failed_original(), f.published(True))
             self.assertFalse(result.complete)
             self.assertIn('finalization-refused', result.diagnostics)

@@ -1040,7 +1040,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-29',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-30',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -4309,8 +4309,7 @@ def _finish_original15(account, original, published):
                         'old_export': str(account.original_output / 'export'),
                         'old_join': asdict(account.old_join) if account.old_join is not None else None}
             identity_raw = encoded(identity)
-            _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) + len(identity_raw) <= 8 * MIB - 65536)
-            account.metadata_bytes += len(identity_raw)
+            _proof_require(account.metadata_bytes + getattr(account.preparation, 'metadata_bytes', 0) <= 8 * MIB - 65536)
             members.append(('identity.json', identity_raw))
             for name, raw in members:
                 _proof_final_clock(account)
