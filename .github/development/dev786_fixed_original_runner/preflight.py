@@ -1040,7 +1040,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-30',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-34',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
