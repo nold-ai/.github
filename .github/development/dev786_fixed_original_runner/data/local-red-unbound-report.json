@@ -684,7 +684,7 @@
       "tests/unit/security/test_release_dependency_selection.py::test_reviewed_tooling_versions_match_frozen_export[virtualenv-21.14.13]",
       "tests/unit/security/test_release_promotion_security_gates.py::test_frozen_graph_uses_official_semgrep_with_bounded_mcp_exception"
     ],
-    "source_ref": "22b2fa7bd763b18ada1bfd1a9ea482a624f34cca"
+    "source_ref": "d77209f4b13c386e29391f93e1f1c58d7fd8622f"
   },
   "findings": [],
   "gate_decision": "pass",

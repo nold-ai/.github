@@ -12,12 +12,16 @@ from types import SimpleNamespace
 import unittest
 from xml.etree import ElementTree as ET
 
+R3 = "d77209f4b13c386e29391f93e1f1c58d7fd8622f"
 R2 = "22b2fa7bd763b18ada1bfd1a9ea482a624f34cca"
 OLD_R = "4ae6175a4d337296d0347e73b66c9da1f0e43f7f"
 C = "9b5ad1e78430cc0b061cb16de42f73de96f4f312"
-TREE = "fd6a43314d221ee03f6bf476c737487a71aa3677"
+TREE = "cfba03cf57f6de2fc6dd37709c9d8e38d03f2187"
+PARENT_TREE = "fd6a43314d221ee03f6bf476c737487a71aa3677"
 OLD_TREE = "baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e"
-RAW = "e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa"
+RAW = "4e1a7ea873491daa1606564af7a7fd63bdd141e06964277f3f7c8600ec79632c"
+PARENT_RAW = "e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa"
+OLD_RAW = "43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e"
 BASE = "/repos/nold-ai/specfact-cli"
 URL = "https://github.com/nold-ai/specfact-cli.git"
 TARGET = OWNED = PREPARE = OPTIONS = DATA = None
@@ -173,7 +177,7 @@ class Products(unittest.TestCase):
                 TARGET._check_products(account, TARGET._OriginalStage.BINDER)
             accepted(self, TARGET._OriginalProofError, operation)
             proof = json.loads(account.products.bound_report.data)["execution_proof"]
-            self.assertEqual((proof["source_ref"], proof["source_tree"], proof["merge_base"]), (R2, TREE, C))
+            self.assertEqual((proof["source_ref"], proof["source_tree"], proof["merge_base"]), (R3, TREE, C))
             self.assertEqual(set(proof["test_file_digests"]),
                              {row["path"] for row in json.loads(data("sources.json")) if row["path"].startswith("tests/")})
             self.assertFalse(account.live_complete)
@@ -235,14 +239,14 @@ class Preparation(unittest.TestCase):
         self.addCleanup(self.fixture.doCleanups)
         self.fixture.setUp()
         self.account = self.fixture.account
-        self.r2 = json.loads(data("r2-api.json"))
+        self.r3 = json.loads(data("r3-api.json"))
         self.calls = []
         def get(path, *, archive=False):
             self.assertFalse(archive)
             self.calls.append(path)
             routes = {BASE: self.fixture.repo, BASE + "/git/commits/" + C: self.fixture.c,
                       BASE + "/git/commits/" + OLD_R: self.fixture.r,
-                      BASE + "/git/commits/" + R2: self.r2}
+                      BASE + "/git/commits/" + R3: self.r3}
             return json.dumps(routes[path]).encode()
         self.fixture.api = SimpleNamespace(GitHub=lambda: SimpleNamespace(get=get))
 
@@ -250,30 +254,39 @@ class Preparation(unittest.TestCase):
         prepared = accepted(self, TARGET._OriginalRPreparationError,
                             lambda: TARGET._prepare_original_r(self.account, self.fixture.api))
         self.assertEqual((prepared.commit, prepared.parent, prepared.tree, prepared.parent_tree),
-                         (R2, OLD_R, TREE, OLD_TREE))
+                         (R3, R2, TREE, PARENT_TREE))
         return prepared
 
-    def test_real_objects_two_commit_chain_and_twelve_subject_bytes(self):
+    def test_real_objects_three_commit_chain_and_twelve_subject_bytes(self):
         prepared = self.prepare()
-        self.assertEqual(self.fixture.git(prepared.root, "rev-list", "--reverse", C + ".." + R2),
-                         (OLD_R + "\n" + R2 + "\n").encode())
-        self.assertEqual(self.fixture.git(prepared.root, "merge-base", C, R2), (C + "\n").encode())
+        self.assertEqual(self.fixture.git(prepared.root, "rev-list", "--parents", "--reverse", C + ".." + R3),
+                         (OLD_R + " " + C + "\n" + R2 + " " + OLD_R + "\n"
+                          + R3 + " " + R2 + "\n").encode())
+        self.assertEqual(self.fixture.git(prepared.root, "merge-base", C, R3), (C + "\n").encode())
         self.assertEqual((prepared.root / ".git/shallow").read_bytes(), (C + "\n").encode())
-        self.assertEqual(digest(self.fixture.git(prepared.root, "cat-file", "commit", R2)), RAW)
+        self.assertEqual(digest(self.fixture.git(prepared.root, "cat-file", "commit", R3)), RAW)
+        self.assertEqual(digest(self.fixture.git(prepared.root, "cat-file", "commit", R2)), PARENT_RAW)
+        self.assertEqual(digest(self.fixture.git(prepared.root, "cat-file", "commit", OLD_R)), OLD_RAW)
         sources = tuple((item["path"], item["sha256"]) for item in json.loads(data("sources.json")))
         self.assertEqual(tuple(prepared.sources), sources)
         for path, sha256 in sources:
             self.assertEqual(digest((prepared.root / path).read_bytes()), sha256)
-        self.assertEqual(self.calls, [BASE, BASE + "/git/commits/" + C, BASE + "/git/commits/" + R2])
+        self.assertEqual(self.calls, [BASE, BASE + "/git/commits/" + C, BASE + "/git/commits/" + R3])
         fetches = [argv for argv in self.fixture.git_calls if "fetch" in argv]
         self.assertEqual(len(fetches), 1)
-        self.assertIn("--depth=3", fetches[0])
+        self.assertIn("--depth=4", fetches[0])
+        commands = [tuple(row) for row in self.fixture.git_calls]
+        self.assertTrue(any(row[-3:] == ("cat-file", "commit", OLD_R) for row in commands))
+        self.assertTrue(any(row[-4:] == ("rev-parse", "HEAD", C + "^{tree}", R3 + "^{tree}")
+                            for row in commands))
+        self.assertFalse(any(row[-3:] == ("rev-parse", C + "^{tree}", R3 + "^{tree}")
+                             for row in commands))
         self.assertEqual(self.fixture.git(prepared.root, "status", "--porcelain", "--untracked-files=no"), b"")
         self.assertTrue(self.account.preparation.complete)
         self.assertFalse(self.account.stopped)
 
-    def test_c_as_r2_immediate_parent_is_refused_before_fetch(self):
-        self.r2["parents"] = [{"sha": C}]
+    def test_c_as_r3_immediate_parent_is_refused_before_fetch(self):
+        self.r3["parents"] = [{"sha": C}]
         with self.assertRaises(TARGET._OriginalRPreparationError):
             TARGET._prepare_original_r(self.account, self.fixture.api)
         self.assertFalse(any("fetch" in argv for argv in self.fixture.git_calls))
@@ -281,7 +294,7 @@ class Preparation(unittest.TestCase):
 
     def test_new_selected_source_corruption_refuses_live_use(self):
         prepared = self.prepare()
-        path = prepared.root / "tests/unit/security/test_code_review_dependency_security.py"
+        path = prepared.root / "tests/unit/security/test_release_promotion_security_gates.py"
         path.write_bytes(path.read_bytes() + b"\n# Synthetic changed selected proof input\n")
         root = self.account.root.path
         tool = SimpleNamespace(python=root / "synthetic/bin/python",
@@ -293,7 +306,7 @@ class Preparation(unittest.TestCase):
                 TARGET._verify_original_r_live(self.account, prepared, tool, timer)
         self.assertTrue(self.account.stopped)
 
-    def test_existing_vectors_keep_c_and_r2_in_distinct_roles(self):
+    def test_existing_vectors_keep_c_and_r3_in_distinct_roles(self):
         prepared = self.prepare()
         root = self.account.root.path
         tool = SimpleNamespace(python=root / "synthetic/bin/python",
@@ -303,7 +316,7 @@ class Preparation(unittest.TestCase):
         vectors = TARGET._original_vectors(tool, prepared)
         self.assertEqual(tuple(v.expected_exit for v in vectors), (0, 1, 0, 0))
         self.assertEqual(vectors[0].argv[vectors[0].argv.index(b"--base-ref") + 1], C.encode())
-        self.assertEqual(vectors[2].argv[vectors[2].argv.index(b"--source-ref") + 1], R2.encode())
+        self.assertEqual(vectors[2].argv[vectors[2].argv.index(b"--source-ref") + 1], R3.encode())
         self.assertEqual({key for key, _ in vectors[0].environment},
                          {b"HOME", b"TMPDIR", b"PATH", b"LC_ALL", b"VIRTUAL_ENV",
                           b"SPECFACT_MODULES_REPO", b"SPECFACT_MODULES_ROOTS", b"GIT_CONFIG_NOSYSTEM"})
@@ -317,7 +330,7 @@ def main():
                         help="Original unchanged test fixture directory, not a runtime override")
     parser.add_argument("--policy-helper", type=Path, required=True)
     parser.add_argument("--git-source", type=Path,
-                        help="Read-only local repository containing actual R2, no network fallback")
+                        help="Read-only local repository containing actual R3, no network fallback")
     parser.add_argument("--mode", choices=("junit", "planning", "products", "sources", "preparation"), required=True)
     OPTIONS = parser.parse_args()
     DATA = Path(__file__).resolve().with_name("data")

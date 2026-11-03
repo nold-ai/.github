@@ -45,6 +45,6 @@
   },
   {
     "path": "tests/unit/security/test_release_promotion_security_gates.py",
-    "sha256": "32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093"
+    "sha256": "166881163bdd33ef5c5f71ec0bf7911c2f97bbef3caea5a062833a8f7dfbef9f"
   }
 ]
