@@ -1040,7 +1040,7 @@ def actual(api, policy, output, rows, fixture, account):
     os_release = platform.freedesktop_os_release()
     require(os_release.get('ID') == 'ubuntu' and os_release.get('VERSION_ID') == '24.04', 'Ubuntu 24.04 required')
     require(os.environ.get('GITHUB_REPOSITORY') == 'nold-ai/.github'
-            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-34',
+            and os.environ.get('GITHUB_REF') == 'refs/heads/codex/dev786-original-native-36',
             'fixed auxiliary workflow scope')
     controls = json.loads((output / 'controls.json').read_bytes())
     require(controls['all_required_controls']
@@ -2122,7 +2122,7 @@ _FIXED_SOURCES = (
     ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/evidence.py', 'f5a34c6fa21d6d1c6428d54da1a9b6ce61bee6d2c2d8d190a8751a7eca25bc3e'),
     ('M', 'packages/specfact-requirements/src/specfact_requirements/requirements/lifecycle.py', '9352b1acde9f520e577657b5812e9b129a8b018ddd76113684b829e7b395d654'),
     ('R', 'tests/unit/security/test_code_review_dependency_security.py', 'ffc5a4e3f9f1b2b5574a970ab8e5673a68b647f865e620224f788fa5e773b59e'),
-    ('R', 'tests/unit/security/test_release_promotion_security_gates.py', '32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093'),
+    ('R', 'tests/unit/security/test_release_promotion_security_gates.py', '166881163bdd33ef5c5f71ec0bf7911c2f97bbef3caea5a062833a8f7dfbef9f'),
 )
 
 _FIXED_CASES = (
@@ -2541,13 +2541,16 @@ class _OriginalRNotImplemented(RuntimeError):
     pass
 
 
-_ORIGINAL_R = '22b2fa7bd763b18ada1bfd1a9ea482a624f34cca'
-_ORIGINAL_R_TREE = 'fd6a43314d221ee03f6bf476c737487a71aa3677'
+_ORIGINAL_R = 'd77209f4b13c386e29391f93e1f1c58d7fd8622f'
+_ORIGINAL_R_TREE = 'cfba03cf57f6de2fc6dd37709c9d8e38d03f2187'
 _ORIGINAL_C_TREE = '24112d8c9983333f9059283965230348f718b74c'
-_ORIGINAL_R_RAW = 'e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa'
-_ORIGINAL_R_PARENT = '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
-_ORIGINAL_R_PARENT_TREE = 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
-_ORIGINAL_R_PARENT_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
+_ORIGINAL_R_RAW = '4e1a7ea873491daa1606564af7a7fd63bdd141e06964277f3f7c8600ec79632c'
+_ORIGINAL_R_PARENT = '22b2fa7bd763b18ada1bfd1a9ea482a624f34cca'
+_ORIGINAL_R_PARENT_TREE = 'fd6a43314d221ee03f6bf476c737487a71aa3677'
+_ORIGINAL_R_PARENT_RAW = 'e4fb60ffd26867bb0bab3b92353ff40cfce196011d27aae3fbd5dd14946223fa'
+_ORIGINAL_R_GRANDPARENT = '4ae6175a4d337296d0347e73b66c9da1f0e43f7f'
+_ORIGINAL_R_GRANDPARENT_TREE = 'baeb88acf0d2a5015810ad12dbfccfa7fdf9a21e'
+_ORIGINAL_R_GRANDPARENT_RAW = '43f81bdc267a38928838620dd35a741e6329d46243fc78a9160a7a7ee3913a2e'
 _ORIGINAL_R_SOURCES = (
     ('tests/unit/scripts/test_dependency_compatibility_workflow.py', '416e367877990ebb2d809e11847c363cd599c32f32d014a818f09053d5fab7fa'),
     ('tests/unit/scripts/test_dependency_trust_review.py', 'bb20822cb58c8f773f8ed7a54628feef2e1eadbf5cc5c53936422223986ee7ac'),
@@ -2560,7 +2563,7 @@ _ORIGINAL_R_SOURCES = (
     ('requirements/ci/locked.txt', '0bf003b492508a171177f2ba386126b76200262e7e49c3d1a25e1c8139250266'),
     ('uv.lock', '850b941d7d7dabf102d39ce92fb23d7586d183384fac03c140ceae0a07d169b7'),
     ('tests/unit/security/test_code_review_dependency_security.py', 'ffc5a4e3f9f1b2b5574a970ab8e5673a68b647f865e620224f788fa5e773b59e'),
-    ('tests/unit/security/test_release_promotion_security_gates.py', '32150f1bb33d28f7e1302f80081c3617b37e430d1d99c0d00a9f1a089b7ad093'),
+    ('tests/unit/security/test_release_promotion_security_gates.py', '166881163bdd33ef5c5f71ec0bf7911c2f97bbef3caea5a062833a8f7dfbef9f'),
 )
 
 
@@ -3294,7 +3297,7 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         config(initial=True)
         git('init', '--template=' + str(preparation.template.path), '.')
         config()
-        git('fetch', '--depth=3', '--no-tags', '--no-recurse-submodules',
+        git('fetch', '--depth=4', '--no-tags', '--no-recurse-submodules',
             'https://github.com/nold-ai/specfact-cli.git', _ORIGINAL_R)
     inventory()
     config()
@@ -3330,12 +3333,17 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
     charge(5 * len(raw_parent))
     _original_r_require(sha(raw_parent) == _ORIGINAL_R_PARENT_RAW
                         and raw_parent.partition(b'\n\n')[0].split(b'\n')[:2]
-                        == [b'tree ' + _ORIGINAL_R_PARENT_TREE.encode(), b'parent ' + C.encode()])
-    _original_r_require(git('rev-parse', C + '^{tree}', _ORIGINAL_R + '^{tree}')
-                        == (_ORIGINAL_C_TREE + '\n' + _ORIGINAL_R_TREE + '\n').encode())
+                        == [b'tree ' + _ORIGINAL_R_PARENT_TREE.encode(),
+                            b'parent ' + _ORIGINAL_R_GRANDPARENT.encode()])
+    raw_grandparent = git('cat-file', 'commit', _ORIGINAL_R_GRANDPARENT)
+    charge(5 * len(raw_grandparent))
+    _original_r_require(sha(raw_grandparent) == _ORIGINAL_R_GRANDPARENT_RAW
+                        and raw_grandparent.partition(b'\n\n')[0].split(b'\n')[:2]
+                        == [b'tree ' + _ORIGINAL_R_GRANDPARENT_TREE.encode(), b'parent ' + C.encode()])
     git('merge-base', '--is-ancestor', C, _ORIGINAL_R)
     _original_r_require(git('rev-list', '--parents', '--reverse', C + '..' + _ORIGINAL_R)
-                        == (_ORIGINAL_R_PARENT + ' ' + C + '\n'
+                        == (_ORIGINAL_R_GRANDPARENT + ' ' + C + '\n'
+                            + _ORIGINAL_R_PARENT + ' ' + _ORIGINAL_R_GRANDPARENT + '\n'
                             + _ORIGINAL_R + ' ' + _ORIGINAL_R_PARENT + '\n').encode())
     _original_r_require(git('merge-base', C, _ORIGINAL_R) == (C + '\n').encode())
     changed = git('diff', '--name-status', '-z', '--find-renames', C, _ORIGINAL_R)
@@ -3373,7 +3381,8 @@ def _original_r_git_checks(account, timer, *, api=None, tool=None):
         config()
     _original_r_require(read_file('.git/HEAD', 41) == (_ORIGINAL_R + '\n').encode()
                         and read_file('.git/shallow', 41) == (C + '\n').encode())
-    _original_r_require(git('rev-parse', 'HEAD') == (_ORIGINAL_R + '\n').encode()
+    _original_r_require(git('rev-parse', 'HEAD', C + '^{tree}', _ORIGINAL_R + '^{tree}')
+                        == (_ORIGINAL_R + '\n' + _ORIGINAL_C_TREE + '\n' + _ORIGINAL_R_TREE + '\n').encode()
                         and git('for-each-ref', '--format=%(refname)') == b'')
     staged = git('ls-files', '--stage', '-z')
     charge(4 * len(staged))
@@ -3705,7 +3714,7 @@ def _check_products(account, stage):
             _proof_require(proof['junit_digest'] == 'sha256:' + products.junit.sha256)
             proof['junit_digest'] = 'sha256:' + '0' * 64
             normalized = encoded(report)
-            _proof_require(sha(normalized) == '8973cc7481ee0e0627f39e2625a87ce52b94afd3b62859f12d47675bbab12ec0')
+            _proof_require(sha(normalized) == '55d934e9986c1f8a2129d2b614250f7142389096db4b667dab22e1a29ff19109')
             _proof_charge(account, len(member.data))
             _proof_require(account.retained_bytes + len(member.data) <= 16 * MIB)
             _owned_root_check(account)
@@ -3727,7 +3736,7 @@ def _check_products(account, stage):
             member = _read_owned(account, _SourceRole.REPORT)
             bound, original = parsed(member), parsed(products.unbound_report)
             proof = bound['execution_proof']
-            additions = {'source_tree': 'fd6a43314d221ee03f6bf476c737487a71aa3677', 'merge_base': C,
+            additions = {'source_tree': _ORIGINAL_R_TREE, 'merge_base': C,
                          'test_file_digests': {path: 'sha256:' + digest for label, path, digest in _FIXED_SOURCES
                                                if label == 'R' and path.startswith('tests/')},
                          'toolchain_identity': {'runner': 'pytest', 'python': '3.12.15', 'pytest': '9.1.1'}}
