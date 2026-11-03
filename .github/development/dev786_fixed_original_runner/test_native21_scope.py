@@ -284,6 +284,18 @@ class Preparation(unittest.TestCase):
         self.assertEqual(self.fixture.git(prepared.root, "status", "--porcelain", "--untracked-files=no"), b"")
         self.assertTrue(self.account.preparation.complete)
         self.assertFalse(self.account.stopped)
+        root = self.account.root.path
+        tool = SimpleNamespace(python=root / "synthetic/bin/python",
+                               site_packages=root / "synthetic/site-packages",
+                               core_root=root / "synthetic/core", modules_root=root / "synthetic/modules",
+                               uv=root / "synthetic/bin/uv")
+        counts = [len(self.account.preparation.commands)]
+        for _ in range(2):
+            with TARGET.Timer(1200) as timer:
+                live = TARGET._original_r_git_checks(self.account, timer, tool=tool)
+            self.assertEqual(live, prepared)
+            counts.append(len(self.account.preparation.commands))
+        self.assertEqual(counts, [36, 65, 94])
 
     def test_c_as_r3_immediate_parent_is_refused_before_fetch(self):
         self.r3["parents"] = [{"sha": C}]
