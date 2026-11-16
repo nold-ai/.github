@@ -1,4 +1,4 @@
-name: Native materialization development preflight 36
+name: Native materialization delivery evidence refresh 20261116
 on:
   create:
 permissions:
@@ -8,8 +8,8 @@ jobs:
     if: >-
       github.repository == 'nold-ai/.github' &&
       github.event.ref_type == 'branch' &&
-      github.event.ref == 'codex/dev786-original-native-36' &&
-      github.ref == 'refs/heads/codex/dev786-original-native-36' &&
+      github.event.ref == 'codex/dev786-original-native-refresh-20261116' &&
+      github.ref == 'refs/heads/codex/dev786-original-native-refresh-20261116' &&
       github.actor == 'djm81' && github.actor_id == '39115308'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -37,7 +37,7 @@ jobs:
           import stat
 
           members = (
-              ('.github/development/dev786_fixed_original_runner/preflight.py', 243848, 'ccfed2764582e5c5a97d7dfdd57367e22174b2ea2cff61082d625c4b9798bdaf'),
+              ('.github/development/dev786_fixed_original_runner/preflight.py', 243862, 'b060a31e6c034495956763bbbd19d482659f3ceac37afce0c48c5bd7bbc17a41'),
               ('.github/scripts/native_requirements_bootstrap.py', 18504, '41b6c601923c676e01c64dc6e34dbec0ab6b9586036b180d855a4aba8210b1c4'),
               ('.github/scripts/native_requirements_acquisition.py', 8887, 'eca68d533288503dea824c5419c4aa7f019f9c094c965752127e0c19c5ff1efe'),
               ('.github/scripts/late_cycle_admission.py', 41624, '57d0149537c0d69078b4aa490510da434ede292e71de9d55abd2743f9ba78b64'),
@@ -100,7 +100,7 @@ jobs:
               and os.environ.get("GITHUB_REPOSITORY") == "nold-ai/.github"
               and os.environ.get("GITHUB_REPOSITORY_ID") == "1110267669"
               and os.environ.get("GITHUB_REPOSITORY_OWNER_ID") == "225190663"
-              and os.environ.get("GITHUB_REF") == "refs/heads/codex/dev786-original-native-36"
+              and os.environ.get("GITHUB_REF") == "refs/heads/codex/dev786-original-native-refresh-20261116"
               and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
               and os.environ.get("GITHUB_ACTOR") == "djm81"
               and os.environ.get("GITHUB_ACTOR_ID") == "39115308"
