@@ -1,0 +1,104 @@
+name: Protected Requirements before-fix evidence
+description: Run the approved core PR 799 tests on their signed tests-only source with an audited dependency graph.
+outputs:
+  artifact-id:
+    description: Immutable artifact containing the bound native RED proof.
+    value: ${{ steps.upload.outputs.artifact-id }}
+  artifact-digest:
+    description: SHA-256 digest recorded by GitHub Actions for the uploaded archive.
+    value: ${{ steps.upload.outputs.artifact-digest }}
+runs:
+  using: composite
+  steps:
+    - name: Verify the signed source and audited graph commits
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_HOST: github.com
+      shell: bash
+      run: |
+        set -euo pipefail
+        for commit in 01f4685bce54889f97d4af0e62542caa685caaa5 c2f08e33295119e5dba9905f0fb25f02956bb3e2; do
+          gh api "repos/nold-ai/specfact-cli/commits/${commit}" | jq -e \
+            --arg commit "$commit" '.sha == $commit and .commit.verification.verified == true and .commit.verification.reason == "valid"' > /dev/null
+        done
+
+    - name: Checkout the signed tests-only tree
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: nold-ai/specfact-cli
+        ref: 01f4685bce54889f97d4af0e62542caa685caaa5
+        path: requirements-red-subject
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Checkout the audited dependency graph
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: nold-ai/specfact-cli
+        ref: c2f08e33295119e5dba9905f0fb25f02956bb3e2
+        path: requirements-red-graph
+        persist-credentials: false
+
+    - name: Checkout the unchanged module fixture
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: nold-ai/specfact-cli-modules
+        ref: 69f075819be5e1ceca1446b026b0417f19e584ca
+        path: requirements-red-fixture
+        persist-credentials: false
+
+    - name: Set up the Requirements interpreter
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      with:
+        python-version: '3.12'
+
+    - name: Validate the execution inputs and install the audited graph
+      id: environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        graph="$GITHUB_WORKSPACE/requirements-red-graph"
+        subject="$GITHUB_WORKSPACE/requirements-red-subject"
+        fixture="$GITHUB_WORKSPACE/requirements-red-fixture"
+        script="$GITHUB_ACTION_PATH/produce.py"
+        python -I -S "$script" "$GITHUB_EVENT_PATH" "$subject" "$fixture" "$graph"
+        (cd "$graph" && python -I -S scripts/check_dependency_trust_exceptions.py)
+
+        root="$(mktemp -d "$RUNNER_TEMP/protected-requirements-red.XXXXXX")"
+        lock="$graph/requirements/ci/locked.txt"
+        awk '/^[^#[:space:]]/{ selected = $0 ~ /^(pip|setuptools|wheel|packaging)==/ } selected { print }' \
+          "$lock" > "$root/build-locked.txt"
+        test "$(grep -Ec '^(pip|setuptools|wheel|packaging)==' "$root/build-locked.txt")" = 4
+        python -I -m venv "$root/venv"
+        interpreter="$root/venv/bin/python"
+        "$interpreter" -I -m pip --isolated install --index-url https://pypi.org/simple \
+          --no-deps --only-binary=:all: --require-hashes -r "$root/build-locked.txt"
+        "$interpreter" -I -m pip --isolated install --index-url https://pypi.org/simple \
+          --no-deps --no-build-isolation --require-hashes -r "$lock"
+        (
+          cd "$graph"
+          "$interpreter" -I scripts/security_audit_gate.py
+          "$interpreter" -I scripts/security_audit_gate.py --requirement requirements/code-review/locked.txt
+          "$interpreter" -I scripts/security_audit_gate.py --requirement requirements/runtime-smoke/locked.txt
+        )
+        printf 'root=%s\n' "$root" >> "$GITHUB_OUTPUT"
+
+    - name: Produce and bind the native RED result
+      env:
+        PROOF_ROOT: ${{ steps.environment.outputs.root }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        env -i HOME="$HOME" LANG=C.UTF-8 PATH="$PROOF_ROOT/venv/bin:$PATH" TMPDIR="$RUNNER_TEMP" \
+          "$PROOF_ROOT/venv/bin/python" -I "$GITHUB_ACTION_PATH/produce.py" "$GITHUB_EVENT_PATH" \
+          "$GITHUB_WORKSPACE/requirements-red-subject" "$GITHUB_WORKSPACE/requirements-red-fixture" \
+          "$GITHUB_WORKSPACE/requirements-red-graph" --output "$PROOF_ROOT/artifact"
+
+    - name: Publish exact-current-run proof
+      id: upload
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: requirements-protected-red-${{ github.run_attempt }}
+        path: ${{ steps.environment.outputs.root }}/artifact
+        if-no-files-found: error
+        retention-days: 14
