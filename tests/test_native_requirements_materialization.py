@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from test_native_tool_release import (
-    DIRECTORY, INDEX_GET, INDEX_PATH,
+    DIRECTORY, INDEX_GET, INDEX_PATH, NOW,
     file_response, load, release as release, tool_endpoint,
 )
 
@@ -110,6 +110,8 @@ def synthetic_install_report(raw):
 @pytest.fixture
 def native(release, monkeypatch, tmp_path):
     materialization = load("native_requirements_materialization", monkeypatch)
+    # Synthetic tool receipts use the acquisition fixture’s original approval window.
+    monkeypatch.setattr(materialization, "datetime", SimpleNamespace(now=lambda tz: NOW.astimezone(tz)))
     descriptor = json.loads(release.raw["runtime.json"])
     workspace = tmp_path / "workspace"
     workspace.mkdir(mode=0o700)
